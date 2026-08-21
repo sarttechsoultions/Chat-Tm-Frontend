@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+
+@layer utilities {
+  /* Chrome, Safari aur Opera ke liye scrollbar hide karna */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* IE, Edge aur Firefox ke liye scrollbar hide karna */
+  .no-scrollbar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+}
