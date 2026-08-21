@@ -9,14 +9,14 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-white p-4 font-sans">
       {/* Main Container */}
-      <div className="w-full max-w-[900px] flex gap-10 lg:gap-20 items-center justify-center">
+      <div className="w-full max-w-full flex gap-10 lg:gap-20 items-center justify-center">
         
         {/* Left Panel - Branding (Hidden on mobile, visible on desktop) */}
-        <div className="hidden md:flex flex-col justify-center items-center w-[448px] h-[604px] bg-[#00696F] rounded-[14px] shadow-lg">
+        <div className="hidden md:flex flex-col justify-center items-center w-[448px] h-[604px] bg-[#D21B8B1A] rounded-[14px] shadow-lg">
           {/* Actual Logo from public folder */}
           <div className="relative flex justify-center items-center w-full">
             <Image 
-              src="/ChatTm-Logo.png" // Yahan apni image ka exact naam likhein jo public folder mein hai
+              src="/ChatTmLogo.png" // Yahan apni image ka exact naam likhein jo public folder mein hai
               alt="ChatTm Logo" 
               width={200} // Apne design ke hisaab se size adjust kar sakte hain
               height={100} 

@@ -2,172 +2,155 @@
 
 import React from "react";
 import Image from "next/image";
-import { MoreHorizontal, Search } from "lucide-react";
 
 const TRENDING_TAGS = [
-  { 
-    tag: "WebDesign", 
-    posts: "12.8K posts", 
-    iconColor: "text-[#E74C3C]", // Red text
-    iconBg: "bg-[#FDECEB]"       // Light red background
-  },
-  { 
-    tag: "AIRevolution", 
-    posts: "8.4K posts", 
-    iconColor: "text-[#3498DB]", // Blue text
-    iconBg: "bg-[#EAF4FC]"       // Light blue background
-  },
-  { 
-    tag: "TravelDiaries", 
-    posts: "6.7K posts", 
-    iconColor: "text-[#2ECC71]", // Green text
-    iconBg: "bg-[#EAFAF1]"       // Light green background
-  },
+  { tag: "WebDesign", posts: "12.8K posts", iconColor: "text-[#EC4899]", iconBg: "bg-[#FDF2F8]" },
+  { tag: "AIRevolution", posts: "8.4K posts", iconColor: "text-[#3B82F6]", iconBg: "bg-[#EFF6FF]" },
+  { tag: "TravelDiaries", posts: "6.7K posts", iconColor: "text-[#22C55E]", iconBg: "bg-[#F0FDF4]" },
 ];
 
 const CONTACTS = [
-  { name: "Emma Watson", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150", online: true },
-  { name: "John Doe", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150", online: true },
-  { name: "Michael Scott", avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150", online: true, time: "12m" },
-  { name: "Sophia Lee", avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150", online: true },
-  { name: "Chris Evans", avatar: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=150", online: false, time: "1h" },
+  { name: "Emma Watson", avatar: "/figma/photos/contact-1.png", online: true },
+  { name: "John Doe", avatar: "/figma/photos/contact-2.png", online: true },
+  { name: "Michael Scott", avatar: "/figma/photos/contact-3.png", online: false, time: "12m", dimmed: true },
+  { name: "Sophia Lee", avatar: "/figma/photos/contact-4.png", online: true },
+  { name: "Chris Evans", avatar: "/figma/photos/contact-5.png", online: false, time: "1h" },
 ];
 
 const ATTENDEES = [
-  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
-  "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150",
-  "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150",
-  "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150",
+  "/figma/photos/attendee-1.png",
+  "/figma/photos/attendee-2.png",
+  "/figma/photos/attendee-3.png",
+  "/figma/photos/attendee-4.png",
 ];
 
 export default function RightSidebar() {
   return (
-    <aside className="w-[300px] flex flex-col gap-4 p-3 bg-[#F0F2F5] font-sans select-none h-full overflow-y-auto no-scrollbar">
-      
-      {/* 1. Sponsored Section */}
-      <div className="bg-white rounded-[16px] p-4 shadow-[0px_1px_2px_rgba(0,0,0,0.05)] flex flex-col gap-3">
-        <div className="flex items-center justify-between text-xs font-semibold text-[#65676B]">
-          <span>Sponsored</span>
-          <MoreHorizontal size={18} className="cursor-pointer hover:text-[#0B1C30]" />
+    <aside className="w-[300px] flex flex-col gap-6 py-2 font-sans select-none h-full overflow-y-auto no-scrollbar">
+      <div className="bg-white rounded-[16px] p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-[16px] font-bold text-[#111827] leading-6">Sponsored</h3>
+          <button type="button" aria-label="More">
+            <span className="relative w-[14px] h-[4px] overflow-clip inline-flex">
+              <img src="/figma/icons/more-h-dark.svg" alt="" width={14} height={4} className="size-full object-contain" />
+            </span>
+          </button>
         </div>
 
-        <div className="flex items-center gap-3 cursor-pointer group">
-          <div className="relative w-[100px] h-[80px] rounded-[10px] overflow-hidden shrink-0">
+        <div className="flex items-start gap-3 cursor-pointer group">
+          <div className="relative size-[96px] rounded-[8px] overflow-hidden shrink-0">
             <Image
-              src="https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=300"
+              src="/figma/photos/macbook.png"
               alt="MacBook Pro"
               fill
+              sizes="96px"
               className="object-cover group-hover:scale-105 transition-transform duration-300"
             />
           </div>
-          <div className="flex flex-col justify-center">
-            <h4 className="text-[13px] font-bold text-[#0B1C30] leading-[18px] line-clamp-2">
+          <div className="flex flex-col flex-1 min-w-0">
+            <h4 className="text-[14px] font-bold text-[#111827] leading-[17.5px]">
               The New MacBook Pro M3 — Supercharged for pros.
             </h4>
-            <span className="text-[11px] text-[#65676B] mt-1">apple.com</span>
+            <span className="text-[12px] text-[#6B7280] mt-2">apple.com</span>
+            <button className="mt-2 w-full bg-[#FAF5FF] text-[#00696F] font-semibold text-[12px] py-1.5 px-3 rounded-[8px]">
+              Learn More
+            </button>
           </div>
         </div>
-
-        <button className="w-full bg-[#F0F2F5] hover:bg-[#e4e6eb] text-[#00696F] font-semibold text-xs py-2 rounded-[8px] transition-colors text-center">
-          Learn More
-        </button>
       </div>
 
-{/* 2. Trending Now Section */}
-      <div className="bg-white rounded-[16px] p-4 shadow-[0px_1px_2px_rgba(0,0,0,0.05)] flex flex-col gap-3">
-        <div className="flex items-center justify-between text-xs font-semibold text-[#65676B]">
-          <span>Trending Now</span>
-          <button className="text-[#00696F] hover:underline">See All</button>
+      <div className="bg-white rounded-[16px] p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-[16px] font-bold text-[#111827] leading-6">Trending Now</h3>
+          <button className="text-[14px] font-semibold text-[#00696F] hover:underline">See All</button>
         </div>
-
-        <div className="flex flex-col gap-2 mt-1">
-          {TRENDING_TAGS.map((item, index) => (
-            <div key={index} className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded-xl transition-colors">
-              
-              {/* Colorful Hashtag Icon */}
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center text-lg font-bold shrink-0 ${item.iconBg} ${item.iconColor}`}>
+        <div className="flex flex-col gap-4">
+          {TRENDING_TAGS.map((item) => (
+            <div key={item.tag} className="flex items-start gap-3 cursor-pointer">
+              <div className={`size-8 rounded-full flex items-center justify-center text-[14px] font-bold shrink-0 ${item.iconBg} ${item.iconColor}`}>
                 #
               </div>
-
-              {/* Tag Name & Posts Count */}
               <div className="flex flex-col">
-                <span className="text-sm font-bold text-[#0B1C30]">{item.tag}</span>
-                <span className="text-xs text-[#65676B]">{item.posts}</span>
+                <span className="text-[14px] font-semibold text-[#111827] leading-5">{item.tag}</span>
+                <span className="text-[12px] text-[#6B7280] leading-4">{item.posts}</span>
               </div>
-              
             </div>
           ))}
         </div>
       </div>
 
-      {/* 3. Contacts Section */}
-      <div className="bg-white rounded-[16px] p-4 shadow-[0px_1px_2px_rgba(0,0,0,0.05)] flex flex-col gap-3">
-        <div className="flex items-center justify-between text-xs font-semibold text-[#65676B]">
-          <span>Contacts</span>
+      <div className="bg-white rounded-[16px] p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-[16px] font-bold text-[#111827] leading-6">Contacts</h3>
           <div className="flex items-center gap-2">
-            <Search size={16} className="cursor-pointer hover:text-[#0B1C30]" />
-            <MoreHorizontal size={16} className="cursor-pointer hover:text-[#0B1C30]" />
+            <span className="relative size-[14px] overflow-clip">
+              <img src="/figma/icons/search-sm.svg" alt="" width={14} height={14} className="size-full object-contain" />
+            </span>
+            <span className="relative w-[14px] h-[4px] overflow-clip">
+              <img src="/figma/icons/more-h-dark.svg" alt="" width={14} height={4} className="size-full object-contain" />
+            </span>
           </div>
         </div>
 
-        <div className="flex flex-col gap-1">
-          {CONTACTS.map((contact, index) => (
-            <div key={index} className="flex items-center justify-between p-1.5 hover:bg-gray-100 rounded-xl cursor-pointer transition-colors">
+        <div className="flex flex-col gap-3">
+          {CONTACTS.map((contact) => (
+            <div key={contact.name} className="flex items-center justify-between cursor-pointer">
               <div className="flex items-center gap-3">
-                <div className="relative w-9 h-9 rounded-full overflow-hidden shrink-0">
-                  <Image src={contact.avatar} alt={contact.name} fill className="object-cover" />
+                <div className="relative">
+                  <div className={`relative size-8 rounded-full overflow-hidden shrink-0 ${contact.dimmed ? "opacity-60" : ""}`}>
+                    <Image src={contact.avatar} alt={contact.name} fill sizes="32px" className="object-cover" />
+                  </div>
                   {contact.online && (
-                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-[#2ECC71] border-2 border-white rounded-full" />
+                    <span className="absolute bottom-0 right-0 size-2.5 bg-[#22C55E] border-2 border-white rounded-full" />
                   )}
                 </div>
-                <span className="text-sm font-semibold text-[#0B1C30]">{contact.name}</span>
+                <span className={`text-[14px] font-medium text-[#1F2937] ${contact.dimmed ? "opacity-80" : ""}`}>
+                  {contact.name}
+                </span>
               </div>
               {contact.time && (
-                <span className="text-[11px] text-[#65676B]">{contact.time}</span>
+                <span className="text-[12px] text-[#9CA3AF]">{contact.time}</span>
               )}
             </div>
           ))}
         </div>
 
-        <button className="w-full bg-[#FAF5FF] hover:bg-[#F3E8FF] text-[#00696F] font-semibold text-xs py-2 rounded-[8px] transition-colors text-center">
+        <button className="w-full bg-[#FAF5FF] text-[#00696F] font-semibold text-[14px] py-2 rounded-[12px]">
           View All Contacts
         </button>
       </div>
 
-      {/* 4. Upcoming Events Section */}
-      <div className="bg-white rounded-[16px] p-4 shadow-[0px_1px_2px_rgba(0,0,0,0.05)] flex flex-col gap-3 mb-4">
-        <div className="flex items-center justify-between text-xs font-semibold text-[#65676B]">
-          <span>Upcoming Events</span>
-          <button className="text-[#00696F] hover:underline">See All</button>
+      <div className="bg-white rounded-[16px] p-4 pb-6 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] flex flex-col gap-4 mb-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-[16px] font-bold text-[#111827] leading-6">Upcoming Events</h3>
+          <button className="text-[14px] font-semibold text-[#00696F] hover:underline">See All</button>
         </div>
 
-        <div className="flex gap-3 items-start bg-gray-50 p-3 rounded-[12px] border border-gray-100">
-          {/* Date Box */}
-          <div className="w-[45px] h-[48px] bg-white rounded-[10px] shadow-sm flex flex-col items-center justify-center border border-gray-200 shrink-0">
-            <span className="text-[10px] font-bold text-[#E74C3C] uppercase leading-none">MAY</span>
-            <span className="text-[16px] font-extrabold text-[#0B1C30] leading-tight">25</span>
+        <div className="flex gap-3 items-start">
+          <div className="size-14 bg-[#FAF5FF] border border-[#F3E8FF] rounded-[12px] flex flex-col items-center justify-center shrink-0">
+            <span className="text-[18px] font-bold text-[#00696F] leading-[18px]">25</span>
+            <span className="text-[12px] font-medium text-[#00696F] uppercase leading-4">MAY</span>
           </div>
-
-          <div className="flex flex-col flex-1">
-            <h4 className="text-[13px] font-bold text-[#0B1C30] leading-[18px]">UI/UX Design Workshop</h4>
-            <p className="text-[11px] text-[#65676B] mt-0.5">10:00 AM – 01:00 PM</p>
-            <p className="text-[11px] text-[#00696F] font-medium">Online Event</p>
-
-            {/* Attendees avatars */}
-            <div className="flex items-center gap-2 mt-2">
-              <div className="flex -space-x-2">
+          <div className="flex flex-col flex-1 min-w-0">
+            <h4 className="text-[14px] font-bold text-[#111827] leading-[17.5px]">UI/UX Design Workshop</h4>
+            <p className="text-[12px] text-[#6B7280] mt-1">10:00 AM – 01:00 PM</p>
+            <p className="text-[12px] text-[#6B7280]">Online Event</p>
+            <div className="flex items-center mt-2">
+              <div className="flex">
                 {ATTENDEES.map((img, i) => (
-                  <div key={i} className="relative w-6 h-6 rounded-full border-2 border-white overflow-hidden">
-                    <Image src={img} alt="attendee" fill className="object-cover" />
+                  <div
+                    key={img}
+                    className={`relative size-6 rounded-full border-2 border-white overflow-hidden ${i > 0 ? "-ml-2" : ""}`}
+                  >
+                    <Image src={img} alt="attendee" fill sizes="24px" className="object-cover" />
                   </div>
                 ))}
               </div>
-              <span className="text-[11px] text-[#65676B] font-medium">+85</span>
+              <span className="text-[12px] text-[#6B7280] font-medium pl-2">+85</span>
             </div>
           </div>
         </div>
       </div>
-
     </aside>
   );
 }
