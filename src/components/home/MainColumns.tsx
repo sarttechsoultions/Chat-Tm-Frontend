@@ -11,9 +11,18 @@ export default function MainColumns({ children }: { children: React.ReactNode })
   const isMessenger = pathname === "/messenger";
   const isCall = pathname.startsWith("/call");
   const isWallet = pathname.startsWith("/wallet");
+  const isAds = pathname.startsWith("/ads");
+  const isAdsDashboard = pathname === "/ads";
+  const isRefer = pathname.startsWith("/refer");
   const showLeftSidebar = !isCreateStory && !isMessenger && !isCall;
   const showRightSidebar =
-    pathname !== "/create-post" && !isCreateStory && !isMessenger && !isCall && !isWallet;
+    pathname !== "/create-post" &&
+    !isCreateStory &&
+    !isMessenger &&
+    !isCall &&
+    !isWallet &&
+    !isAds &&
+    !isRefer;
 
   if (isCall) {
     return (
@@ -39,7 +48,11 @@ export default function MainColumns({ children }: { children: React.ReactNode })
         </aside>
       ) : null}
 
-      <main className="flex-1 h-full overflow-y-auto no-scrollbar pb-10 min-w-0">
+      <main
+        className={`flex-1 h-full min-w-0 ${
+          isAdsDashboard ? "overflow-hidden" : "overflow-y-auto no-scrollbar pb-10"
+        }`}
+      >
         {children}
       </main>
 

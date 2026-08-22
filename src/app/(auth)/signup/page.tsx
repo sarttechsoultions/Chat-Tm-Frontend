@@ -1,10 +1,10 @@
 import React, { Suspense } from "react";
-import LoginForm from "./LoginForm";
+import SignupForm from "./SignupForm";
 
-export default function LoginPage() {
+export default function SignupPage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-white" />}>
-      <LoginForm />
+      <SignupForm />
     </Suspense>
   );
 }
