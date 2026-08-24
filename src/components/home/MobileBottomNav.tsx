@@ -69,7 +69,7 @@ export default function MobileBottomNav() {
         {ITEMS.map((item) => {
           const active = isActive(pathname, item.href);
 
-          if ("emphasize" in item && item.emphasize) {
+          if (!("icon" in item)) {
             return (
               <Link
                 key={item.href}
