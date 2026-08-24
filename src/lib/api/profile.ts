@@ -1,11 +1,10 @@
 import { getSessionToken, type AuthUser, type FriendUser } from "../auth";
+import { apiUrl } from "../apiUrl";
 import type { PostItem, PostAuthor } from "./posts";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getSessionToken();
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(apiUrl(path), {
     ...options,
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),

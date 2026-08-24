@@ -1,3 +1,5 @@
+import { apiUrl } from "./apiUrl";
+
 export type AuthUser = {
   id: string;
   firstName: string;
@@ -49,11 +51,9 @@ export class ApiError extends Error {
   }
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
-
 export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getSessionToken();
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(apiUrl(path), {
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -205,7 +205,7 @@ export async function submitVerificationRequest(documentType: string, file: File
   formData.append("documentType", documentType);
   formData.append("document", file);
 
-  const response = await fetch(`${API_BASE}/api/v1/users/me/verification`, {
+  const response = await fetch(apiUrl("/users/me/verification"), {
     method: "POST",
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     body: formData,
