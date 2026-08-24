@@ -639,7 +639,7 @@ export default function MessengerUI() {
   }, [messages]);
 
   return (
-    <div className="h-full w-full flex bg-white border border-[#D3E4FE] overflow-hidden relative">
+    <div className="h-full w-full flex bg-white overflow-hidden relative sm:border sm:border-[#D3E4FE]">
       <input
         type="file"
         ref={fileInputRef}
@@ -649,9 +649,9 @@ export default function MessengerUI() {
       />
 
       <aside
-        className={`w-full sm:w-[320px] shrink-0 h-full flex flex-col border-r border-[#D3E4FE] bg-white ${
-          activeChatId ? "hidden sm:flex" : "flex"
-        }`}
+        className={`h-full w-full shrink-0 flex-col border-r border-[#D3E4FE] bg-white ${
+          activeChatId ? "hidden lg:flex" : "flex"
+        } lg:w-[320px]`}
       >
         <div className="flex items-center justify-between px-4 pt-4 pb-[17px] border-b border-[#D3E4FE]">
           <h2 className="text-[16px] leading-6 text-[#0B1C30] font-normal">Chats</h2>
@@ -753,8 +753,8 @@ export default function MessengerUI() {
       </aside>
 
       <section
-        className={`flex-1 min-w-0 h-full flex flex-col bg-white relative ${
-          activeChatId ? "flex" : "hidden sm:flex"
+        className={`relative flex h-full min-w-0 flex-1 flex-col bg-white ${
+          activeChatId ? "flex" : "hidden lg:flex"
         }`}
       >
         {activeChatId ? (
@@ -763,7 +763,7 @@ export default function MessengerUI() {
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  className="sm:hidden text-[#00696F] text-[13px] font-semibold"
+                  className="text-[13px] font-semibold text-[#00696F] lg:hidden"
                   onClick={() => {
                     setActiveChatId(null);
                     syncUrl(null);
@@ -840,7 +840,7 @@ export default function MessengerUI() {
                             </div>
                           )}
 
-                          <div className={`flex items-end gap-2 max-w-[70%] ${isMine ? "flex-row-reverse" : ""}`}>
+                          <div className={`flex items-end gap-2 max-w-[85%] sm:max-w-[70%] ${isMine ? "flex-row-reverse" : ""}`}>
                             {!isMine && (
                               <UserAvatar
                                 avatarUrl={sender?.avatar}
@@ -1027,7 +1027,7 @@ export default function MessengerUI() {
             )}
 
             <form
-              className="shrink-0 flex items-center gap-1.5 px-3 py-3 border-t border-[#D3E4FE] bg-white"
+              className="shrink-0 flex items-center gap-1.5 px-3 pt-3 border-t border-[#D3E4FE] bg-white pb-[max(0.75rem,env(safe-area-inset-bottom))]"
               onSubmit={handleSend}
             >
               <button

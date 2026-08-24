@@ -12,7 +12,6 @@ export default function MainColumns({ children }: { children: React.ReactNode })
   const isCall = pathname.startsWith("/call");
   const isWallet = pathname.startsWith("/wallet");
   const isAds = pathname.startsWith("/ads");
-  const isAdsDashboard = pathname === "/ads";
   const isRefer = pathname.startsWith("/refer");
   const isFriends = pathname.startsWith("/friends");
   const isProfile = pathname.startsWith("/profile");
@@ -28,40 +27,43 @@ export default function MainColumns({ children }: { children: React.ReactNode })
     !isFriends &&
     !isProfile;
 
+  const mobilePad =
+    isMessenger || isCall || isCreateStory
+      ? ""
+      : "pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-10";
+
   if (isCall) {
     return (
-      <div className="w-full flex flex-1 overflow-hidden">
-        <main className="flex-1 h-full min-w-0 overflow-hidden">{children}</main>
+      <div className="flex w-full flex-1 overflow-hidden">
+        <main className="h-full min-w-0 flex-1 overflow-hidden">{children}</main>
       </div>
     );
   }
 
   if (isMessenger) {
     return (
-      <div className="w-full max-w-[1440px] mx-auto flex flex-1 overflow-hidden px-4 lg:px-[85px] pt-0">
-        <main className="flex-1 h-full min-w-0 overflow-hidden">{children}</main>
+      <div className="mx-auto flex w-full max-w-[1440px] flex-1 overflow-hidden px-0 sm:px-4 lg:px-[85px]">
+        <main className="h-full min-w-0 flex-1 overflow-hidden">{children}</main>
       </div>
     );
   }
 
   return (
-    <div className="w-full max-w-[1440px] mx-auto flex justify-between gap-6 flex-1 overflow-hidden px-4 lg:px-20 pt-2.5">
+    <div className="mx-auto flex w-full max-w-[1440px] flex-1 justify-between gap-4 overflow-hidden px-3 pt-2 sm:px-4 lg:gap-6 lg:px-20">
       {showLeftSidebar ? (
-        <aside className="hidden lg:block w-[290px] h-full shrink-0 overflow-y-auto no-scrollbar pb-6">
+        <aside className="hidden h-full w-[290px] shrink-0 overflow-y-auto no-scrollbar pb-6 lg:block">
           <LeftSidebar />
         </aside>
       ) : null}
 
       <main
-        className={`flex-1 h-full min-w-0 ${
-          isAdsDashboard ? "overflow-hidden" : "overflow-y-auto no-scrollbar pb-10"
-        }`}
+        className={`h-full min-w-0 flex-1 overflow-y-auto no-scrollbar ${mobilePad}`}
       >
         {children}
       </main>
 
       {showRightSidebar ? (
-        <aside className="hidden xl:block w-[290px] h-full shrink-0 overflow-y-auto no-scrollbar pb-6">
+        <aside className="hidden h-full w-[290px] shrink-0 overflow-y-auto no-scrollbar pb-6 xl:block">
           <RightSidebar />
         </aside>
       ) : null}

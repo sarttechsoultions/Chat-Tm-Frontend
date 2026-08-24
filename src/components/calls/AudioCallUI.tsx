@@ -22,7 +22,7 @@ export default function AudioCallUI({ connected = false }: AudioCallUIProps) {
   }, [connected, router]);
 
   return (
-    <div className="h-full w-full bg-white flex flex-col items-center justify-between px-12 pt-10 pb-16">
+    <div className="flex h-full w-full flex-col items-center justify-between bg-white px-4 pt-8 pb-10 sm:px-12 sm:pt-10 sm:pb-16">
       <div className="flex flex-col items-center">
         <div className="pb-10">
           <PulsingCallAvatar src="/figma/photos/emma-call.png" />
@@ -42,7 +42,7 @@ export default function AudioCallUI({ connected = false }: AudioCallUIProps) {
         </div>
       </div>
 
-      <div className="flex items-center gap-[40px] md:gap-[60px] rounded-full bg-[#F8F9FF] border border-[#D3E4FE] px-[25px] py-[17px] shadow-[0px_10px_20px_rgba(0,105,111,0.08)] backdrop-blur-[12px]">
+      <div className="flex items-center gap-6 rounded-full border border-[#D3E4FE] bg-[#F8F9FF] px-4 py-3 shadow-[0px_10px_20px_rgba(0,105,111,0.08)] backdrop-blur-[12px] sm:gap-[40px] sm:px-[25px] sm:py-[17px] md:gap-[60px]">
         <button type="button" onClick={() => setMuted((value) => !value)} className="flex flex-col items-center gap-1">
           <span
             className={`flex size-14 items-center justify-center rounded-full ${

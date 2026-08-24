@@ -4,8 +4,10 @@ import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Menu, Search, X } from "lucide-react";
 import FigmaIcon from "./FigmaIcon";
 import { UserAvatar } from "../ui/UserAvatar";
+import { useAppShell } from "./AppShellContext";
 import { displayName, meRequest } from "../../lib/auth";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useSocket } from "../hooks/useSocket";
@@ -34,6 +36,7 @@ function formatUnread(count: number) {
 
 export default function Navbar() {
   const pathname = usePathname();
+  const { toggleMenu, searchOpen, toggleSearch, closeSearch } = useAppShell();
   const socket = useSocket();
   const currentUser = useCurrentUser();
   const user = currentUser
@@ -81,10 +84,18 @@ export default function Navbar() {
   }, [socket, refreshUnread]);
 
   return (
-    <header className="sticky top-0 z-50 w-full h-[50px] bg-white shadow-[0px_4px_10px_0px_rgba(0,0,0,0.25)] flex items-center">
-      <div className="max-w-[1440px] w-full mx-auto px-[24px] lg:px-[80px] flex items-center justify-between h-full gap-2">
-        <div className="flex items-center gap-3 lg:gap-6 flex-1">
-          <Link href="/" className="relative w-[66px] h-[40px] shrink-0 overflow-clip">
+    <header className="sticky top-0 z-50 flex min-h-[56px] w-full flex-col bg-white shadow-[0px_4px_10px_0px_rgba(0,0,0,0.12)]">
+      <div className="mx-auto flex h-[56px] w-full max-w-[1440px] items-center justify-between gap-2 px-3 sm:px-6 lg:px-[80px]">
+        <div className="flex min-w-0 flex-1 items-center gap-2 lg:gap-6">
+          <button
+            type="button"
+            onClick={toggleMenu}
+            aria-label="Open menu"
+            className="flex size-10 items-center justify-center rounded-full hover:bg-[#F3F4F6] lg:hidden"
+          >
+            <Menu className="size-5 text-[#0B1C30]" />
+          </button>
+          <Link href="/" className="relative h-9 w-[58px] shrink-0 overflow-clip sm:h-10 sm:w-[66px]">
             <Image
               src="/figma/photos/logo.png"
               alt="Chattm"
@@ -95,17 +106,17 @@ export default function Navbar() {
             />
           </Link>
 
-          <div className="hidden sm:flex h-9 w-[180px] lg:w-[220px] items-center gap-2 rounded-[8px] bg-[#F3F4F6] px-3 shrink-0">
+          <div className="hidden h-9 w-[180px] shrink-0 items-center gap-2 rounded-[8px] bg-[#F3F4F6] px-3 sm:flex lg:w-[220px]">
             <FigmaIcon src="/figma/icons/search.svg" alt="" width={13} height={12} />
             <input
               type="text"
               placeholder="Search ChatTm"
-              className="w-full bg-transparent border-none text-[12px] lg:text-[14px] text-[#3C494A] placeholder-[#3C494A] focus:outline-none"
+              className="w-full border-none bg-transparent text-[12px] text-[#3C494A] placeholder-[#3C494A] focus:outline-none lg:text-[14px]"
             />
           </div>
         </div>
 
-        <div className="hidden md:flex items-center justify-center gap-8 lg:gap-16 h-full shrink-0">
+        <div className="hidden h-full shrink-0 items-center justify-center gap-6 md:flex lg:gap-16">
           {NAV_ICONS.map(({ label, icon, href }) => {
             const active = isNavActive(pathname, href);
             return (
@@ -135,8 +146,16 @@ export default function Navbar() {
           })}
         </div>
 
-        <div className="flex items-center gap-3 lg:gap-[20px] flex-1 justify-end shrink-0">
-          <button type="button" aria-label="Notifications" className="relative size-[30px] overflow-clip shrink-0">
+        <div className="flex shrink-0 flex-1 items-center justify-end gap-1.5 sm:gap-3 lg:gap-[20px]">
+          <button
+            type="button"
+            aria-label={searchOpen ? "Close search" : "Search"}
+            onClick={toggleSearch}
+            className="flex size-10 items-center justify-center rounded-full hover:bg-[#F3F4F6] sm:hidden"
+          >
+            {searchOpen ? <X className="size-5 text-[#0B1C30]" /> : <Search className="size-5 text-[#0B1C30]" />}
+          </button>
+          <button type="button" aria-label="Notifications" className="relative size-[30px] shrink-0 overflow-clip">
             <img src="/figma/icons/bell.svg" alt="" width={30} height={30} className="size-full object-contain" />
           </button>
           <Link
@@ -156,6 +175,22 @@ export default function Navbar() {
           </Link>
         </div>
       </div>
+      {searchOpen ? (
+        <div className="border-t border-[#E5E7EB] px-3 py-2 sm:hidden">
+          <label className="flex h-10 items-center gap-2 rounded-[10px] bg-[#F3F4F6] px-3">
+            <Search className="size-4 shrink-0 text-[#6B7280]" />
+            <input
+              autoFocus
+              type="search"
+              placeholder="Search ChatTm"
+              onKeyDown={(event) => {
+                if (event.key === "Escape") closeSearch();
+              }}
+              className="w-full bg-transparent text-[14px] text-[#0B1C30] placeholder-[#6B7280] outline-none"
+            />
+          </label>
+        </div>
+      ) : null}
     </header>
   );
 }

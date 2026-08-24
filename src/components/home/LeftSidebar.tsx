@@ -31,7 +31,7 @@ const BOTTOM_MENU_ITEMS = [
   { label: "Help & Support", icon: "/figma/icons/help.svg", href: "/support" },
 ];
 
-export default function LeftSidebar() {
+export default function LeftSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const currentUser = useCurrentUser();
@@ -56,12 +56,12 @@ export default function LeftSidebar() {
    <div className="relative w-full shrink-0 rounded-[16px] bg-[#117378] p-6 flex flex-col items-center overflow-hidden shadow-[0px_4px_6px_-1px_rgba(0,0,0,0.1),0px_2px_4px_-2px_rgba(0,0,0,0.1)]">
         <div className="pointer-events-none absolute bg-white blur-[20px] opacity-10 right-[-64px] rounded-full size-[128px] top-[-64px]" />
 
-        <Link href="/profile" className="relative z-10 mb-3 shrink-0">
-          <UserAvatar avatarUrl={avatar} name={name} size={80} className="!border-4 !border-white/30" isOnline={true} />
-        </Link>
+          <Link href="/profile" className="relative z-10 mb-3 shrink-0">
+            <UserAvatar avatarUrl={avatar} name={name} size={80} className="!border-4 !border-white/30" isOnline={true} />
+          </Link>
 
-        <div className="flex items-center gap-1.5">
-          <Link href="/profile" className="text-[18px] font-bold leading-[28px] text-white hover:underline">
+          <div className="flex max-w-full items-center justify-center gap-1.5 px-1">
+            <Link href="/profile" className="truncate text-[18px] font-bold leading-[28px] text-white hover:underline">
             {name}
           </Link>
           <span className="relative size-[14px] overflow-clip shrink-0">
@@ -110,6 +110,7 @@ export default function LeftSidebar() {
           <Link
             key={label}
             href={href}
+            onClick={onNavigate}
             className={`flex items-center gap-3 px-4 py-3 rounded-[12px] transition-all text-[16px] ${
               active
                 ? "bg-[rgba(0,105,111,0.2)] text-[#00696F] font-semibold"
@@ -130,6 +131,7 @@ export default function LeftSidebar() {
           <Link
             key={label}
             href={href}
+            onClick={onNavigate}
             className="flex items-center gap-3 px-4 py-3 rounded-[12px] text-[#4B5563] font-medium text-[16px] hover:bg-gray-50 transition-all"
           >
             <span className="relative w-5 h-5 overflow-clip shrink-0">
@@ -141,6 +143,7 @@ export default function LeftSidebar() {
         <button
           type="button"
           onClick={async () => {
+            onNavigate?.();
             await logoutRequest();
             router.replace("/login");
             router.refresh();

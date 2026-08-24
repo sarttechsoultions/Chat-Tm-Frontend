@@ -36,6 +36,10 @@ export default function LoginForm() {
   return (
     <main className="min-h-screen bg-white px-5 py-10 font-sans text-[#0B1C30] lg:flex lg:items-center lg:justify-center lg:px-8 lg:py-0">
       <div className="mx-auto flex w-full max-w-[917px] flex-col items-center gap-12 lg:flex-row lg:items-center lg:gap-[85px]">
+        <section className="flex h-auto w-full max-w-[280px] items-center justify-center rounded-[14px] bg-[rgba(0,105,111,0.10)] py-8 lg:hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/figma/auth/chat-tm-logo.png" alt="ChatTm" className="h-12 w-[168px] object-contain" />
+        </section>
         <section className="hidden h-[604px] w-[448px] shrink-0 items-center justify-center rounded-[14px] bg-[rgba(0,105,111,0.10)] lg:flex">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/figma/auth/chat-tm-logo.png" alt="ChatTm" className="h-[92.5px] w-[256px] object-contain" />

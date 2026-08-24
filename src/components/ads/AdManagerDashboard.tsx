@@ -138,14 +138,14 @@ export default function AdManagerDashboard() {
 
   return (
     <div className="w-full h-full min-h-0 flex flex-col">
-      <div className="flex items-start justify-between gap-4 shrink-0 pt-1 pb-4">
+      <div className="flex flex-col items-start justify-between gap-3 shrink-0 pt-1 pb-4 sm:flex-row sm:items-center sm:gap-4">
         <div>
           <h1 className="text-[24px] font-bold leading-8 text-[#171C26]">Ad Manager</h1>
           <p className="mt-1 text-[14px] leading-5 text-[#707786]">
             Manage your ads and track their performance.
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0">
           <div className="relative">
             <button
               type="button"

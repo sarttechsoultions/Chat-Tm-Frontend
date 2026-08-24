@@ -71,7 +71,7 @@ export default function StoriesSection() {
         <button
           onClick={scrollRight}
           aria-label="Scroll Right"
-          className="absolute right-2 top-1/2 -translate-y-1/2 size-8 bg-white rounded-full flex items-center justify-center shadow-[0px_4px_6px_-1px_rgba(0,0,0,0.1),0px_2px_4px_-2px_rgba(0,0,0,0.1)] z-10"
+          className="absolute right-2 top-1/2 z-10 hidden size-8 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow-[0px_4px_6px_-1px_rgba(0,0,0,0.1),0px_2px_4px_-2px_rgba(0,0,0,0.1)] sm:flex"
         >
           <span className="relative w-[7px] h-[12px] overflow-clip">
             <img src="/figma/icons/arrow.svg" alt="" width={7} height={12} className="size-full object-contain" />

@@ -224,7 +224,7 @@ export default function CreatePostPage() {
   }
 
   return (
-    <div className="flex items-start justify-center gap-3 pt-2.5 pb-12 px-2">
+    <div className="flex items-start justify-center gap-2 px-0 pb-12 pt-2 sm:gap-3 sm:px-2">
       <Link
         href="/"
         aria-label="Go back"
@@ -244,7 +244,7 @@ export default function CreatePostPage() {
       <div className="w-full max-w-[768px] flex flex-col gap-6">
         <header>
           <h1
-            className={`${sourceSerif.className} text-[32px] font-bold leading-[40px] tracking-[-0.32px] text-[#0B1C30]`}
+            className={`${sourceSerif.className} text-[24px] font-bold leading-8 tracking-[-0.32px] text-[#0B1C30] sm:text-[32px] sm:leading-[40px]`}
           >
             Create New Post
           </h1>

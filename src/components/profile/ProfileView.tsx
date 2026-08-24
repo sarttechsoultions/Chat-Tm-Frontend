@@ -165,9 +165,9 @@ export default function ProfileView({ username }: { username?: string }) {
   ];
 
   return (
-    <div className="mx-auto w-full max-w-[820px] pb-10">
+    <div className="mx-auto w-full max-w-[820px] pb-4 sm:pb-10">
       <section className="overflow-hidden rounded-[16px] bg-white shadow-[0_1px_4px_rgba(0,0,0,0.08)]">
-        <div className="relative h-[220px] bg-[#117378]">
+        <div className="relative h-[140px] bg-[#117378] sm:h-[180px] lg:h-[220px]">
           {user.coverPhoto ? (
             <img src={user.coverPhoto} alt="" className="size-full object-cover" />
           ) : (
@@ -175,15 +175,15 @@ export default function ProfileView({ username }: { username?: string }) {
           )}
         </div>
 
-        <div className="relative px-5 pb-5 sm:px-8">
-          <div className="-mt-16 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div className="flex items-end gap-4">
+        <div className="relative px-4 pb-5 sm:px-8">
+          <div className="-mt-12 flex flex-col gap-4 sm:-mt-16 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex items-end gap-3 sm:gap-4">
               <div className="rounded-full border-4 border-white bg-white">
-                <UserAvatar avatarUrl={user.avatar} name={fullName(user)} size={128} />
+                <UserAvatar avatarUrl={user.avatar} name={fullName(user)} size="size-20 sm:size-28 lg:size-32" />
               </div>
-              <div className="pb-1">
+              <div className="min-w-0 pb-1">
                 <div className="flex items-center gap-1.5">
-                  <h1 className="text-[24px] font-bold leading-8 text-[#111827]">{fullName(user)}</h1>
+                  <h1 className="truncate text-[20px] font-bold leading-7 text-[#111827] sm:text-[24px] sm:leading-8">{fullName(user)}</h1>
                   {user.isVerified ? (
                     <img src="/figma/icons/verified.svg" alt="" width={16} height={16} />
                   ) : null}
@@ -247,13 +247,13 @@ export default function ProfileView({ username }: { username?: string }) {
 
           {error ? <p className="mt-3 text-[13px] text-red-600">{error}</p> : null}
 
-          <nav className="mt-5 flex gap-5 border-t border-[#E5E7EB]">
+          <nav className="mt-5 flex gap-4 overflow-x-auto no-scrollbar border-t border-[#E5E7EB] sm:gap-5">
             {tabs.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => setTab(item.id)}
-                className={`border-b-2 px-1 py-3 text-[14px] font-medium ${
+                className={`shrink-0 border-b-2 px-1 py-3 text-[14px] font-medium ${
                   tab === item.id
                     ? "border-[#00696F] text-[#00696F]"
                     : "border-transparent text-[#6B7280]"
@@ -634,7 +634,7 @@ function EditProfileModal({
       }}
     >
       <div
-        className="edit-profile-card flex max-h-[92vh] w-full max-w-[540px] flex-col overflow-hidden rounded-[20px] bg-white shadow-[0_24px_60px_rgba(0,0,0,0.22)]"
+        className="edit-profile-card flex max-h-[min(92dvh,calc(100dvh-1.5rem))] w-full max-w-[540px] flex-col overflow-hidden rounded-[20px] bg-white shadow-[0_24px_60px_rgba(0,0,0,0.22)]"
         onClick={(event) => event.stopPropagation()}
       >
         <input
