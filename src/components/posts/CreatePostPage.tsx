@@ -91,6 +91,7 @@ export default function CreatePostPage() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [friends, setFriends] = useState<FriendUser[]>([]);
   const [caption, setCaption] = useState("");
+  const [heading, setHeading] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -160,7 +161,7 @@ export default function CreatePostPage() {
 
   const firstName = liveUser?.firstName || user?.firstName || "there";
   const selectedPrivacy = PRIVACY_OPTIONS.find((item) => item.id === privacy) || PRIVACY_OPTIONS[0];
-  const canPost = Boolean(caption.trim() || files.length);
+  const canPost = Boolean(heading.trim() || caption.trim() || files.length);
 
   function insertAtCursor(text: string) {
     const el = textareaRef.current;
@@ -207,6 +208,7 @@ export default function CreatePostPage() {
     setError("");
     try {
       await createPost({
+        heading: heading.trim(),
         body: caption,
         privacy,
         location,
@@ -331,7 +333,14 @@ export default function CreatePostPage() {
               </div>
             </div>
 
-            <div className="relative">
+            <div className="relative flex flex-col gap-3">
+              <input
+                value={heading}
+                maxLength={120}
+                onChange={(event) => setHeading(event.target.value)}
+                placeholder="Add a heading"
+                className={`${sourceSerif.className} w-full bg-transparent text-[22px] font-bold leading-7 text-[#0B1C30] placeholder:font-semibold placeholder:text-[rgba(60,73,74,0.45)] focus:outline-none`}
+              />
               <textarea
                 ref={textareaRef}
                 value={caption}

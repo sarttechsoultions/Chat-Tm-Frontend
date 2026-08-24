@@ -50,7 +50,7 @@ export type ProfileData = {
   user: ProfileUser;
   isOwn: boolean;
   friendship: { status: FriendshipStatus; requestId: string | null };
-  stats: { friends: number; posts: number; photos: number };
+  stats: { friends: number; posts: number; photos: number; groups?: number };
   friends: FriendUser[];
   photos: { id: string; url: string; postId: string }[];
   posts: PostItem[];

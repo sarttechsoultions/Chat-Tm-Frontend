@@ -219,6 +219,36 @@ export function ComposerTray({
   );
 }
 
+export function SeenTicks({
+  seen,
+  pending,
+  failed,
+}: {
+  seen: boolean;
+  pending?: boolean;
+  failed?: boolean;
+}) {
+  if (failed || pending) return null;
+  return (
+    <span
+      className={`ml-1 inline-flex items-center ${seen ? "text-[#7EE0E6]" : "text-white/70"}`}
+      title={seen ? "Seen" : "Sent"}
+      aria-label={seen ? "Seen" : "Sent"}
+    >
+      {seen ? (
+        <svg width="16" height="10" viewBox="0 0 16 10" fill="none" aria-hidden="true">
+          <path d="M1.2 5.2 3.6 7.6 8.8 1.6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M6.4 5.2 8.8 7.6 14.4 1.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      ) : (
+        <svg width="12" height="10" viewBox="0 0 12 10" fill="none" aria-hidden="true">
+          <path d="M1.2 5.2 3.8 7.7 10.6 1.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
+    </span>
+  );
+}
+
 export function ReactionBar({
   isMine,
   onReact,
@@ -265,8 +295,9 @@ export function ReactionBar({
         <button
           type="button"
           onClick={onDelete}
-          className="px-1 text-[13px] text-gray-400 hover:text-red-500"
+          className="flex h-8 w-8 items-center justify-center rounded-full text-[18px] text-[#6B7280] hover:bg-red-50 hover:text-red-600"
           title="Delete for everyone"
+          aria-label="Delete message"
         >
           🗑
         </button>

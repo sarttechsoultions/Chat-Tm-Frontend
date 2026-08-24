@@ -37,6 +37,7 @@ export type PostAuthor = {
 export type PostItem = {
   id: string;
   body: string;
+  heading?: string;
   privacy: "PUBLIC" | "FRIENDS" | "PRIVATE";
   location?: string;
   feeling?: string;
@@ -48,6 +49,7 @@ export type PostItem = {
   likesCount: number;
   commentsCount: number;
   sharesCount?: number;
+  group?: { id: string; name: string } | null;
   liked: boolean;
 };
 
@@ -58,25 +60,33 @@ export type PostComment = {
   author: PostAuthor;
 };
 
-export async function fetchPosts(authorId?: string): Promise<PostItem[]> {
-  const path = authorId ? `/posts?authorId=${encodeURIComponent(authorId)}` : "/posts";
+export async function fetchPosts(authorId?: string, groupId?: string): Promise<PostItem[]> {
+  const params = new URLSearchParams();
+  if (authorId) params.set("authorId", authorId);
+  if (groupId) params.set("groupId", groupId);
+  const query = params.toString();
+  const path = query ? `/posts?${query}` : "/posts";
   const data = await postRequest<{ items: PostItem[] }>(path);
   return Array.isArray(data?.items) ? data.items : [];
 }
 
 export async function createPost(input: {
   body: string;
+  heading?: string;
   privacy?: string;
   location?: string;
   feeling?: string;
   mentionIds?: string[];
+  groupId?: string;
   files?: File[];
 }): Promise<PostItem> {
   const formData = new FormData();
   formData.append("body", input.body);
+  if (input.heading) formData.append("heading", input.heading);
   formData.append("privacy", input.privacy || "PUBLIC");
   if (input.location) formData.append("location", input.location);
   if (input.feeling) formData.append("feeling", input.feeling);
+  if (input.groupId) formData.append("groupId", input.groupId);
   if (input.mentionIds?.length) formData.append("mentionIds", JSON.stringify(input.mentionIds));
   (input.files || []).forEach((file) => formData.append("media", file));
   return postRequest<PostItem>("/posts", { method: "POST", body: formData });

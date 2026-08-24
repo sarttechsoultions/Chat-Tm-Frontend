@@ -16,6 +16,7 @@ import {
   toggleMessageReaction,
   deleteMessageForEveryone,
   createDirectConversation,
+  createGroupConversation,
   extractIncomingMessage,
   Conversation,
   Message,
@@ -25,7 +26,8 @@ import {
 import {
   ComposerTray,
   MORE_REACTIONS,
-  ReactionBar
+  ReactionBar,
+  SeenTicks
 } from "./ChatPickers";
 
 function fullName(user?: Pick<User, "firstName" | "lastName"> | null) {
@@ -77,6 +79,68 @@ function renderMessageBody(body: string, isMine: boolean) {
   });
 }
 
+function getChatPartner(chat: Conversation, currentUserId?: string | null) {
+  if (chat.type === "DIRECT") {
+    return (
+      chat.members.find((member) => member.user.id !== currentUserId)?.user ||
+      chat.members[0]?.user
+    );
+  }
+  return null;
+}
+
+function conversationTitle(chat: Conversation, currentUserId?: string | null) {
+  if (chat.type === "GROUP") {
+    return chat.name?.trim() || "Group Chat";
+  }
+  return fullName(getChatPartner(chat, currentUserId));
+}
+
+function conversationAvatar(chat: Conversation, currentUserId?: string | null) {
+  if (chat.type === "GROUP") return chat.avatar || "";
+  return getChatPartner(chat, currentUserId)?.avatar || "";
+}
+
+function GroupAvatars({
+  chat,
+  currentUserId,
+  size = 48
+}: {
+  chat: Conversation;
+  currentUserId?: string | null;
+  size?: number;
+}) {
+  const others = chat.members
+    .filter((member) => member.user.id !== currentUserId)
+    .slice(0, 3);
+  const faces = others.length ? others : chat.members.slice(0, 3);
+  if (faces.length <= 1) {
+    return <UserAvatar avatarUrl={faces[0]?.user.avatar} name={conversationTitle(chat, currentUserId)} size={size} />;
+  }
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      {faces.slice(0, 2).map((member, index) => (
+        <div
+          key={member.userId}
+          className="absolute rounded-full ring-2 ring-white"
+          style={{
+            width: size * 0.68,
+            height: size * 0.68,
+            top: index === 0 ? 0 : size * 0.32,
+            left: index === 0 ? 0 : size * 0.32
+          }}
+        >
+          <UserAvatar avatarUrl={member.user.avatar} name={member.user.firstName} size={size * 0.68} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function isMessageSeen(msg: Message, currentUserId?: string | null) {
+  return Boolean(msg.readBy?.some((reader) => reader.userId !== currentUserId));
+}
+
 function upsertConversation(list: Conversation[], next: Conversation) {
   const without = list.filter((item) => item.id !== next.id);
   return [next, ...without];
@@ -98,6 +162,12 @@ export default function MessengerUI() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [showNewChat, setShowNewChat] = useState(false);
+  const [newChatTab, setNewChatTab] = useState<"direct" | "group">("direct");
+  const [groupName, setGroupName] = useState("");
+  const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Message | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [friends, setFriends] = useState<FriendUser[]>([]);
   const [friendQuery, setFriendQuery] = useState("");
   const [loadingFriends, setLoadingFriends] = useState(false);
@@ -349,6 +419,46 @@ export default function MessengerUI() {
       setConversations((prev) => upsertConversation(prev, { ...chat, unreadCount: chat.unreadCount ?? 0 }));
     };
 
+    const onConversationRead = ({
+      conversationId,
+      userId,
+      readAt
+    }: {
+      conversationId: string;
+      userId: string;
+      readAt: string;
+    }) => {
+      const me = currentUserIdRef.current;
+      if (!readAt || userId === me) return;
+
+      setConversations((prev) =>
+        prev.map((chat) =>
+          chat.id === conversationId
+            ? {
+                ...chat,
+                members: chat.members.map((member) =>
+                  member.userId === userId ? { ...member, lastReadAt: readAt } : member
+                )
+              }
+            : chat
+        )
+      );
+
+      if (conversationId !== activeChatIdRef.current) return;
+
+      setMessages((prev) =>
+        prev.map((item) => {
+          if (item.senderId === userId) return item;
+          if (new Date(item.createdAt) > new Date(readAt)) return item;
+          if (item.readBy?.some((reader) => reader.userId === userId)) return item;
+          return {
+            ...item,
+            readBy: [...(item.readBy || []), { userId, firstName: "" }]
+          };
+        })
+      );
+    };
+
     const onConnect = () => {
       socket.emit("get_online_users");
       if (activeChatIdRef.current) {
@@ -365,6 +475,8 @@ export default function MessengerUI() {
     socket.on("message_reaction_updated", onReaction);
     socket.on("message_deleted", onDeleted);
     socket.on("conversation_upserted", onConversationUpserted);
+    socket.on("conversation_read", onConversationRead);
+    socket.on("conversation_read_notification", onConversationRead);
 
     return () => {
       socket.off("connect", onConnect);
@@ -376,6 +488,8 @@ export default function MessengerUI() {
       socket.off("message_reaction_updated", onReaction);
       socket.off("message_deleted", onDeleted);
       socket.off("conversation_upserted", onConversationUpserted);
+      socket.off("conversation_read", onConversationRead);
+      socket.off("conversation_read_notification", onConversationRead);
     };
   }, [socket]);
 
@@ -442,7 +556,8 @@ export default function MessengerUI() {
         : null,
       reactions: [],
       createdAt: new Date().toISOString(),
-      pending: true
+      pending: true,
+      readBy: []
     };
 
     setDraft("");
@@ -489,7 +604,8 @@ export default function MessengerUI() {
       replyToId: replyingTo?.id,
       reactions: [],
       createdAt: new Date().toISOString(),
-      pending: true
+      pending: true,
+      readBy: []
     };
 
     setMessages((prev) => [...prev, optimistic]);
@@ -531,7 +647,8 @@ export default function MessengerUI() {
         body: draft.trim() || file.name,
         type: file.type.startsWith("image/") ? "IMAGE" : "DOCUMENT",
         createdAt: new Date().toISOString(),
-        pending: true
+        pending: true,
+        readBy: []
       }
     ]);
     setIsUploading(true);
@@ -563,24 +680,36 @@ export default function MessengerUI() {
     }
   };
 
-  const handleDeleteMessage = async (messageId: string) => {
-    if (!confirm("Delete this message for everyone?")) return;
+  const handleDeleteMessage = (message: Message) => {
+    setDeleteTarget(message);
+    setActionMsgId(null);
+  };
+
+  const confirmDeleteMessage = async () => {
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
     try {
-      await deleteMessageForEveryone(messageId);
+      await deleteMessageForEveryone(deleteTarget.id);
       setMessages((prev) =>
         prev.map((item) =>
-          item.id === messageId
+          item.id === deleteTarget.id
             ? { ...item, isDeleted: true, body: "This message was deleted", mediaUrl: null, reactions: [] }
             : item
         )
       );
+      setDeleteTarget(null);
     } catch (err) {
       console.error("Failed to delete", err);
+    } finally {
+      setDeleting(false);
     }
   };
 
   const openNewChatPicker = async () => {
     setShowNewChat(true);
+    setNewChatTab("direct");
+    setGroupName("");
+    setSelectedFriendIds([]);
     setLoadingFriends(true);
     try {
       const result = await listFriends();
@@ -592,22 +721,33 @@ export default function MessengerUI() {
     }
   };
 
-  const getChatPartner = (chat: Conversation) => {
-    if (chat.type === "DIRECT") {
-      return (
-        chat.members.find((member) => member.user.id !== currentUser?.id)?.user ||
-        chat.members[0]?.user
-      );
+  const toggleFriendSelect = (userId: string) => {
+    setSelectedFriendIds((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+    );
+  };
+
+  const handleCreateGroupChat = async () => {
+    if (!groupName.trim() || selectedFriendIds.length < 1 || creatingGroup) return;
+    setCreatingGroup(true);
+    setError("");
+    try {
+      const chat = await createGroupConversation(groupName.trim(), selectedFriendIds);
+      setConversations((prev) => upsertConversation(prev, { ...chat, unreadCount: chat.unreadCount ?? 0 }));
+      setShowNewChat(false);
+      selectChat(chat.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to create group chat.");
+    } finally {
+      setCreatingGroup(false);
     }
-    return null;
   };
 
   const visibleConversations = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return conversations;
     return conversations.filter((chat) => {
-      const partner = getChatPartner(chat);
-      const name = chat.type === "GROUP" ? "group chat" : fullName(partner).toLowerCase();
+      const name = conversationTitle(chat, currentUser?.id).toLowerCase();
       return name.includes(q) || messagePreview(chat.messages?.[0]).toLowerCase().includes(q);
     });
   }, [conversations, search, currentUser?.id]);
@@ -621,11 +761,16 @@ export default function MessengerUI() {
   }, [friends, friendQuery]);
 
   const activeChat = conversations.find((chat) => chat.id === activeChatId);
-  const activePartner = activeChat ? getChatPartner(activeChat) : null;
-  const activeName =
-    activeChat?.type === "GROUP" ? "Group Chat" : fullName(activePartner);
-  const activeAvatar = activeChat?.type === "GROUP" ? "" : activePartner?.avatar || "";
+  const activePartner = activeChat ? getChatPartner(activeChat, currentUser?.id) : null;
+  const activeName = activeChat ? conversationTitle(activeChat, currentUser?.id) : "Chat";
+  const activeAvatar = activeChat ? conversationAvatar(activeChat, currentUser?.id) : "";
+  const isGroupChat = activeChat?.type === "GROUP";
   const isActiveOnline = activePartner ? onlineUsers.has(activePartner.id) : false;
+  const groupOnlineCount = activeChat
+    ? activeChat.members.filter(
+        (member) => member.user.id !== currentUser?.id && onlineUsers.has(member.user.id)
+      ).length
+    : 0;
 
   const groupedMessages = useMemo(() => {
     const groups: { label: string; items: Message[] }[] = [];
@@ -701,9 +846,8 @@ export default function MessengerUI() {
             </div>
           ) : (
             visibleConversations.map((chat) => {
-              const partner = getChatPartner(chat);
-              const name = chat.type === "GROUP" ? "Group Chat" : fullName(partner);
-              const avatar = chat.type === "GROUP" ? "" : partner?.avatar || "";
+              const partner = getChatPartner(chat, currentUser?.id);
+              const name = conversationTitle(chat, currentUser?.id);
               const isUserOnline = partner ? onlineUsers.has(partner.id) : false;
               const latest = chat.messages?.[0];
               const unread = chat.unreadCount || 0;
@@ -719,8 +863,12 @@ export default function MessengerUI() {
                   }`}
                 >
                   <div className="relative">
-                    <UserAvatar avatarUrl={avatar} name={name} size={48} />
-                    {isUserOnline && (
+                    {chat.type === "GROUP" ? (
+                      <GroupAvatars chat={chat} currentUserId={currentUser?.id} size={48} />
+                    ) : (
+                      <UserAvatar avatarUrl={partner?.avatar} name={name} size={48} />
+                    )}
+                    {isUserOnline && chat.type === "DIRECT" && (
                       <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full chat-pop" />
                     )}
                   </div>
@@ -772,25 +920,39 @@ export default function MessengerUI() {
                   ←
                 </button>
                 <div className="relative">
-                  <UserAvatar avatarUrl={activeAvatar} name={activeName} size={40} />
-                  {isActiveOnline && (
+                  {isGroupChat && activeChat ? (
+                    <GroupAvatars chat={activeChat} currentUserId={currentUser?.id} size={40} />
+                  ) : (
+                    <UserAvatar avatarUrl={activeAvatar} name={activeName} size={40} />
+                  )}
+                  {isActiveOnline && !isGroupChat && (
                     <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full" />
                   )}
                 </div>
                 <div>
                   <p className="text-[14px] font-semibold text-[#0B1C30]">{activeName}</p>
                   <p className="text-[12px] font-medium text-[#3C494A]">
-                    {isPartnerTyping ? "Typing…" : isActiveOnline ? "Active now" : "Offline"}
+                    {isPartnerTyping
+                      ? "Typing…"
+                      : isGroupChat
+                        ? `${activeChat?.members.length || 0} members${groupOnlineCount ? ` · ${groupOnlineCount} online` : ""}`
+                        : isActiveOnline
+                          ? "Active now"
+                          : "Offline"}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                <Link href="/call/audio" className="p-2 rounded-full hover:bg-[#EFF4FF] text-[#00696F] transition">
-                  <FigmaIcon src="/figma/icons/call-phone.svg" alt="Audio Call" width={18} height={18} />
-                </Link>
-                <Link href="/call/video" className="p-2 rounded-full hover:bg-[#EFF4FF] text-[#00696F] transition">
-                  <FigmaIcon src="/figma/icons/call-video.svg" alt="Video Call" width={20} height={16} />
-                </Link>
+                {!isGroupChat ? (
+                  <>
+                    <Link href="/call/audio" className="p-2 rounded-full hover:bg-[#EFF4FF] text-[#00696F] transition">
+                      <FigmaIcon src="/figma/icons/call-phone.svg" alt="Audio Call" width={18} height={18} />
+                    </Link>
+                    <Link href="/call/video" className="p-2 rounded-full hover:bg-[#EFF4FF] text-[#00696F] transition">
+                      <FigmaIcon src="/figma/icons/call-video.svg" alt="Video Call" width={20} height={16} />
+                    </Link>
+                  </>
+                ) : null}
               </div>
             </header>
 
@@ -799,9 +961,17 @@ export default function MessengerUI() {
                 <p className="m-auto text-[13px] text-[#6B7280]">Loading messages…</p>
               ) : messages.length === 0 ? (
                 <div className="m-auto text-center chat-slide-up">
-                  <UserAvatar avatarUrl={activeAvatar} name={activeName} size={72} className="mx-auto" />
+                  {isGroupChat && activeChat ? (
+                    <div className="mx-auto w-fit">
+                      <GroupAvatars chat={activeChat} currentUserId={currentUser?.id} size={72} />
+                    </div>
+                  ) : (
+                    <UserAvatar avatarUrl={activeAvatar} name={activeName} size={72} className="mx-auto" />
+                  )}
                   <p className="mt-3 text-[16px] font-semibold text-[#0B1C30]">{activeName}</p>
-                  <p className="mt-1 text-[13px] text-[#6B7280]">You are friends. Send the first message.</p>
+                  <p className="mt-1 text-[13px] text-[#6B7280]">
+                    {isGroupChat ? "This is the beginning of the group chat." : "You are friends. Send the first message."}
+                  </p>
                 </div>
               ) : (
                 groupedMessages.map((group) => (
@@ -856,6 +1026,11 @@ export default function MessengerUI() {
                                   : "bg-[#E5EEFF] text-[#0B1C30] rounded-bl-none"
                               } ${msg.isDeleted ? "italic opacity-70" : ""}`}
                             >
+                              {isGroupChat && !isMine && sender?.firstName ? (
+                                <p className="mb-1 text-[11px] font-semibold text-[#00696F]">
+                                  {sender.firstName} {"lastName" in sender ? sender.lastName : ""}
+                                </p>
+                              ) : null}
                               {msg.mediaUrl && !msg.isDeleted && (
                                 <div className="mb-2">
                                   {msg.type === "IMAGE" && (
@@ -903,11 +1078,20 @@ export default function MessengerUI() {
                                 {renderMessageBody(msg.body, isMine)}
                               </p>
                               <p
-                                className={`mt-1 text-[10px] ${
-                                  isMine ? "text-white/70 text-right" : "text-[#6B7280]"
+                                className={`mt-1 flex items-center gap-0.5 text-[10px] ${
+                                  isMine ? "justify-end text-white/70" : "text-[#6B7280]"
                                 }`}
                               >
-                                {msg.failed ? "Failed" : msg.pending ? "Sending…" : formatClock(msg.createdAt)}
+                                <span>
+                                  {msg.failed ? "Failed" : msg.pending ? "Sending…" : formatClock(msg.createdAt)}
+                                </span>
+                                {isMine && !msg.isDeleted ? (
+                                  <SeenTicks
+                                    seen={isMessageSeen(msg, currentUser?.id)}
+                                    pending={msg.pending}
+                                    failed={msg.failed}
+                                  />
+                                ) : null}
                               </p>
 
                               {msg.reactions && msg.reactions.length > 0 && (
@@ -947,7 +1131,7 @@ export default function MessengerUI() {
                                     setReplyingTo(msg);
                                     setActionMsgId(null);
                                   }}
-                                  onDelete={() => void handleDeleteMessage(msg.id)}
+                                  onDelete={() => handleDeleteMessage(msg)}
                                   onMore={() =>
                                     setMoreReactionsFor((current) => (current === msg.id ? null : msg.id))
                                   }
@@ -992,7 +1176,7 @@ export default function MessengerUI() {
                     <span className="w-1.5 h-1.5 bg-[#00696F] rounded-full typing-dot [animation-delay:0.15s]" />
                     <span className="w-1.5 h-1.5 bg-[#00696F] rounded-full typing-dot [animation-delay:0.3s]" />
                   </div>
-                  <span>{activeName} is typing…</span>
+                  <span>{isGroupChat ? "Someone is typing…" : `${activeName} is typing…`}</span>
                 </div>
               )}
 
@@ -1109,7 +1293,9 @@ export default function MessengerUI() {
         <div className="absolute inset-0 z-20 flex bg-black/20 chat-fade-in">
           <div className="m-auto w-[min(420px,92%)] max-h-[80%] overflow-hidden rounded-2xl bg-white shadow-xl chat-slide-up">
             <div className="flex items-center justify-between border-b border-[#D3E4FE] px-4 py-3">
-              <h3 className="text-[15px] font-semibold text-[#0B1C30]">Message a friend</h3>
+              <h3 className="text-[15px] font-semibold text-[#0B1C30]">
+                {newChatTab === "group" ? "New group" : "New chat"}
+              </h3>
               <button
                 type="button"
                 onClick={() => setShowNewChat(false)}
@@ -1118,15 +1304,45 @@ export default function MessengerUI() {
                 ✕
               </button>
             </div>
+            <div className="grid grid-cols-2 gap-1 px-3 pt-3">
+              <button
+                type="button"
+                onClick={() => setNewChatTab("direct")}
+                className={`rounded-full py-2 text-[13px] font-semibold ${
+                  newChatTab === "direct" ? "bg-[#00696F] text-white" : "bg-[#EFF4FF] text-[#3C494A]"
+                }`}
+              >
+                Friend
+              </button>
+              <button
+                type="button"
+                onClick={() => setNewChatTab("group")}
+                className={`rounded-full py-2 text-[13px] font-semibold ${
+                  newChatTab === "group" ? "bg-[#00696F] text-white" : "bg-[#EFF4FF] text-[#3C494A]"
+                }`}
+              >
+                Group
+              </button>
+            </div>
+            {newChatTab === "group" ? (
+              <div className="px-3 pt-3">
+                <input
+                  value={groupName}
+                  onChange={(event) => setGroupName(event.target.value)}
+                  placeholder="Group name"
+                  className="w-full rounded-full bg-[#EFF4FF] px-4 py-2 text-[14px] outline-none"
+                />
+              </div>
+            ) : null}
             <div className="p-3">
               <input
                 value={friendQuery}
                 onChange={(event) => setFriendQuery(event.target.value)}
-                placeholder="Search friends"
+                placeholder={newChatTab === "group" ? "Add friends" : "Search friends"}
                 className="w-full rounded-full bg-[#EFF4FF] px-4 py-2 text-[14px] outline-none"
               />
             </div>
-            <div className="max-h-[360px] overflow-y-auto no-scrollbar px-2 pb-3">
+            <div className="max-h-[300px] overflow-y-auto no-scrollbar px-2 pb-3">
               {loadingFriends ? (
                 <p className="py-8 text-center text-[13px] text-[#6B7280]">Loading friends…</p>
               ) : visibleFriends.length === 0 ? (
@@ -1134,34 +1350,97 @@ export default function MessengerUI() {
                   Add friends first, then you can message them.
                 </p>
               ) : (
-                visibleFriends.map((friend) => (
-                  <button
-                    key={friend.id}
-                    type="button"
-                    onClick={() => void openFriendChat(friend.id)}
-                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-[#EFF4FF] transition"
-                  >
-                    <UserAvatar
-                      avatarUrl={friend.avatar}
-                      name={`${friend.firstName} ${friend.lastName}`}
-                      size={40}
-                      isOnline={friend.isOnline || onlineUsers.has(friend.id)}
-                    />
-                    <div className="min-w-0">
-                      <p className="truncate text-[14px] font-semibold text-[#0B1C30]">
-                        {friend.firstName} {friend.lastName}
-                      </p>
-                      <p className="text-[12px] text-[#6B7280]">
-                        {onlineUsers.has(friend.id) ? "Active now" : "Friend"}
-                      </p>
-                    </div>
-                  </button>
-                ))
+                visibleFriends.map((friend) => {
+                  const selected = selectedFriendIds.includes(friend.id);
+                  return (
+                    <button
+                      key={friend.id}
+                      type="button"
+                      onClick={() =>
+                        newChatTab === "group"
+                          ? toggleFriendSelect(friend.id)
+                          : void openFriendChat(friend.id)
+                      }
+                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-[#EFF4FF] transition"
+                    >
+                      <UserAvatar
+                        avatarUrl={friend.avatar}
+                        name={`${friend.firstName} ${friend.lastName}`}
+                        size={40}
+                        isOnline={friend.isOnline || onlineUsers.has(friend.id)}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[14px] font-semibold text-[#0B1C30]">
+                          {friend.firstName} {friend.lastName}
+                        </p>
+                        <p className="text-[12px] text-[#6B7280]">
+                          {onlineUsers.has(friend.id) ? "Active now" : "Friend"}
+                        </p>
+                      </div>
+                      {newChatTab === "group" ? (
+                        <span
+                          className={`size-5 rounded-full border ${
+                            selected ? "border-[#00696F] bg-[#00696F]" : "border-[#D1D5DB]"
+                          }`}
+                        />
+                      ) : null}
+                    </button>
+                  );
+                })
               )}
             </div>
+            {newChatTab === "group" ? (
+              <div className="border-t border-[#D3E4FE] p-3">
+                <button
+                  type="button"
+                  disabled={!groupName.trim() || selectedFriendIds.length < 1 || creatingGroup}
+                  onClick={() => void handleCreateGroupChat()}
+                  className="w-full rounded-full bg-[#00696F] py-2.5 text-[14px] font-semibold text-white disabled:opacity-50"
+                >
+                  {creatingGroup
+                    ? "Creating…"
+                    : `Create group${selectedFriendIds.length ? ` (${selectedFriendIds.length})` : ""}`}
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
       )}
+
+      {deleteTarget ? (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/40 px-4 chat-fade-in">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-message-title"
+            className="w-full max-w-[380px] rounded-2xl bg-white p-6 shadow-xl chat-slide-up"
+          >
+            <h3 id="delete-message-title" className="text-[18px] font-bold text-[#111827]">
+              Delete this message?
+            </h3>
+            <p className="mt-2 text-[14px] leading-5 text-[#6B7280]">
+              This message will be deleted for everyone in the chat. This cannot be undone.
+            </p>
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="rounded-[8px] bg-[#F3F4F6] py-2.5 text-[14px] font-bold text-[#4B5563]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => void confirmDeleteMessage()}
+                className="rounded-[8px] bg-[#DC2626] py-2.5 text-[14px] font-bold text-white disabled:opacity-60"
+              >
+                {deleting ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

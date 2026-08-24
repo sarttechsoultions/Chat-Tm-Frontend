@@ -67,15 +67,24 @@ export type Message = {
   sender?: User;
   pending?: boolean;
   failed?: boolean;
+  readBy?: { userId: string; firstName: string }[];
+};
+
+export type ConversationMember = {
+  userId: string;
+  lastReadAt?: string | null;
+  user: User;
 };
 
 export type Conversation = {
   id: string;
   type: "DIRECT" | "GROUP";
+  name?: string;
+  avatar?: string;
   unreadCount?: number;
   lastReadAt?: string | null;
   updatedAt?: string;
-  members: { userId: string; user: User }[];
+  members: ConversationMember[];
   messages: Message[];
 };
 
@@ -94,6 +103,17 @@ export async function createDirectConversation(targetUserId: string): Promise<Co
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ targetUserId }),
+  });
+}
+
+export async function createGroupConversation(
+  name: string,
+  memberIds: string[]
+): Promise<Conversation> {
+  return chatRequest<Conversation>("/conversations/group", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, memberIds }),
   });
 }
 
