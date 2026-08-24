@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
-const API_ORIGIN = process.env.API_ORIGIN || "http://localhost:5000";
+const API_ORIGIN =
+  process.env.API_ORIGIN || "http://localhost:5000";
 
 const nextConfig: NextConfig = {
   async rewrites() {
@@ -11,6 +12,7 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+
   images: {
     remotePatterns: [
       {
@@ -20,6 +22,14 @@ const nextConfig: NextConfig = {
       {
         protocol: "https",
         hostname: "i.pravatar.cc",
+      },
+      {
+        protocol: "https",
+        hostname: "res.cloudinary.com",
+      },
+      {
+        protocol: "https",
+        hostname: "png.pngtree.com",
       },
     ],
   },

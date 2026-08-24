@@ -11,7 +11,7 @@ export default function AuthShell({
   return (
     <div className="min-h-screen flex items-center justify-center bg-white p-4 font-sans">
       <div className="w-full max-w-full flex gap-10 lg:gap-20 items-center justify-center">
-        <div className="hidden md:flex flex-col justify-center items-center w-[448px] h-[604px] bg-[#D21B8B1A] rounded-[14px] shadow-lg">
+        <div className="hidden md:flex flex-col justify-center items-center w-[448px] h-[604px] bg-[rgba(0,105,111,0.10)] rounded-[14px] shadow-lg">
           <div className="relative flex justify-center items-center w-full">
             <Image
               src="/ChatTmLogo.png"

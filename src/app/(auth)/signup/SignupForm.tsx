@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Eye, EyeOff, Plus } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, Eye, EyeOff, Info, Loader2, Plus, X } from "lucide-react";
 import CenteredAuthFrame, {
   AuthLogo,
   StepIndicator,
@@ -11,9 +11,23 @@ import CenteredAuthFrame, {
   authSelectClass,
   primaryButtonClass,
 } from "../../../components/auth/CenteredAuthFrame";
-import { ApiError, identifierToSignupFields, setSession, signupRequest } from "../../../lib/auth";
+import {
+  ApiError,
+  checkUsernameRequest,
+  identifierToSignupFields,
+  setSession,
+  signupRequest,
+  skipVerificationRequest,
+  submitVerificationRequest,
+} from "../../../lib/auth";
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 6;
+const DOCUMENT_TYPES = [
+  { value: "PASSPORT", label: "Passport" },
+  { value: "NATIONAL_ID", label: "National ID" },
+  { value: "DRIVERS_LICENSE", label: "Driver's License" },
+  { value: "AADHAAR", label: "Aadhaar Card" },
+] as const;
 const MONTHS = [
   "January",
   "February",
@@ -39,6 +53,7 @@ export default function SignupForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const documentInputRef = useRef<HTMLInputElement>(null);
 
   const [currentStep, setCurrentStep] = useState(1);
   const [firstName, setFirstName] = useState("");
@@ -58,6 +73,14 @@ export default function SignupForm() {
   const [avatar, setAvatar] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken" | "invalid">("idle");
+  const [usernameMessage, setUsernameMessage] = useState("");
+  const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
+  const [documentType, setDocumentType] = useState("PASSPORT");
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [documentPreview, setDocumentPreview] = useState("");
+  const [dragActive, setDragActive] = useState(false);
+  const [accountCreated, setAccountCreated] = useState(false);
 
   const currentYear = new Date().getFullYear();
   const years = useMemo(
@@ -86,6 +109,14 @@ export default function SignupForm() {
     if (currentStep === 3) {
       if (username.trim().length < 3) {
         setError("Username must be at least 3 characters.");
+        return;
+      }
+      if (usernameStatus === "checking") {
+        setError("Please wait while we check this username.");
+        return;
+      }
+      if (usernameStatus !== "available") {
+        setError(usernameMessage || "Please choose an available username.");
         return;
       }
       if (password.length < 8) {
@@ -119,24 +150,63 @@ export default function SignupForm() {
     reader.readAsDataURL(file);
   }
 
-  async function completeSignup() {
+  function handleDocumentFile(file?: File | null) {
+    if (!file) return;
+    const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/svg+xml"];
+    if (!allowed.includes(file.type)) {
+      setError("Use SVG, PNG, JPG or WEBP.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setError("Document must be 10MB or smaller.");
+      return;
+    }
     setError("");
+    setDocumentFile(file);
+    if (file.type === "image/svg+xml") {
+      setDocumentPreview("");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") setDocumentPreview(reader.result);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function finishSignup(mode: "submit" | "skip") {
+    setError("");
+    if (mode === "submit" && !documentFile) {
+      setError("Please upload a document photo.");
+      return;
+    }
+
     setLoading(true);
     try {
-      const monthValue = month.padStart(2, "0");
-      const result = await signupRequest({
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        username: username.trim(),
-        password,
-        dateOfBirth: year && month && day ? `${year}-${monthValue}-${day.padStart(2, "0")}` : undefined,
-        gender: gender || undefined,
-        bio: bio.trim(),
-        avatar,
-        referralCode: referralCode.trim() || undefined,
-        ...identifierToSignupFields(identifier),
-      });
-      setSession(result.token, result.user, true);
+      if (!accountCreated) {
+        const monthValue = month.padStart(2, "0");
+        const result = await signupRequest({
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          username: username.trim(),
+          password,
+          dateOfBirth: year && month && day ? `${year}-${monthValue}-${day.padStart(2, "0")}` : undefined,
+          gender: gender || undefined,
+          bio: bio.trim(),
+          avatar,
+          referralCode: referralCode.trim() || undefined,
+          ...identifierToSignupFields(identifier),
+        });
+        setSession(result.token, result.user, true);
+        setAccountCreated(true);
+      }
+
+      if (mode === "submit" && documentFile) {
+        await submitVerificationRequest(documentType, documentFile);
+      } else {
+        await skipVerificationRequest().catch(() => undefined);
+      }
+
       router.replace("/");
       router.refresh();
     } catch (err) {
@@ -148,10 +218,64 @@ export default function SignupForm() {
     }
   }
 
+  useEffect(() => {
+    if (currentStep !== 3 || username.trim()) return;
+    const seed = `${firstName}${lastName}`.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (seed.length >= 3) setUsername(seed.slice(0, 24));
+  }, [currentStep, firstName, lastName, username]);
+
+  useEffect(() => {
+    const value = username.trim().toLowerCase();
+    if (currentStep !== 3) return;
+
+    if (!value) {
+      setUsernameStatus("idle");
+      setUsernameMessage("");
+      setUsernameSuggestions([]);
+      return;
+    }
+
+    if (value.length < 3) {
+      setUsernameStatus("invalid");
+      setUsernameMessage("Username must be at least 3 characters.");
+      setUsernameSuggestions([]);
+      return;
+    }
+
+    let cancelled = false;
+    setUsernameStatus("checking");
+    setUsernameMessage("Checking availability…");
+    setUsernameSuggestions([]);
+
+    const timeout = window.setTimeout(() => {
+      checkUsernameRequest(value)
+        .then((result) => {
+          if (cancelled) return;
+          setUsernameStatus(result.status);
+          setUsernameMessage(result.message);
+          setUsernameSuggestions(result.suggestions.slice(0, 3));
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setUsernameStatus("invalid");
+          setUsernameMessage("Unable to check this username right now.");
+          setUsernameSuggestions([]);
+        });
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [username, currentStep]);
+
   return (
-    <CenteredAuthFrame>
+    <CenteredAuthFrame
+      contentClassName={currentStep === 6 ? "max-w-[512px]" : "max-w-[388px]"}
+      pageClassName={currentStep === 6 ? "bg-[#F3F4F6]" : "bg-white"}
+    >
       <AuthLogo />
-      <StepIndicator currentStep={currentStep} totalSteps={TOTAL_STEPS} />
+      {currentStep < 6 ? <StepIndicator currentStep={currentStep} totalSteps={5} /> : null}
 
       {currentStep === 1 && (
         <div className="w-full flex flex-col items-center">
@@ -267,14 +391,65 @@ export default function SignupForm() {
           <div className="w-full flex flex-col gap-6">
             <div>
               <label className="block text-sm font-semibold text-[#0B1C30] mb-2">Username</label>
-              <input
-                type="text"
-                placeholder="johndoe"
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
-                className={authInputClass}
-              />
-              <p className="text-xs text-gray-500 mt-1">You can change this anytime in settings.</p>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="alexpeterson"
+                  autoComplete="username"
+                  value={username}
+                  onChange={(event) => {
+                    setError("");
+                    setUsername(event.target.value.toLowerCase().replace(/[^a-z0-9._]/g, "").slice(0, 24));
+                  }}
+                  className={`${authInputClass} pr-12 ${
+                    usernameStatus === "available"
+                      ? "border-green-500 focus:border-green-600 focus:ring-green-600"
+                      : usernameStatus === "taken" || usernameStatus === "invalid"
+                        ? "border-red-400 focus:border-red-500 focus:ring-red-500"
+                        : ""
+                  }`}
+                />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2">
+                  {usernameStatus === "checking" ? (
+                    <Loader2 size={18} className="animate-spin text-[#00696F]" />
+                  ) : usernameStatus === "available" ? (
+                    <Check size={18} className="text-green-600" />
+                  ) : usernameStatus === "taken" || usernameStatus === "invalid" ? (
+                    <X size={18} className="text-red-500" />
+                  ) : null}
+                </span>
+              </div>
+              <p
+                className={`text-xs mt-1.5 ${
+                  usernameStatus === "available"
+                    ? "text-green-700"
+                    : usernameStatus === "taken" || usernameStatus === "invalid"
+                      ? "text-red-600"
+                      : "text-gray-500"
+                }`}
+              >
+                {usernameMessage || "You can change this later in settings."}
+              </p>
+              {usernameStatus === "taken" && usernameSuggestions.length > 0 ? (
+                <div className="mt-3">
+                  <p className="text-xs font-semibold text-[#0B1C30] mb-2">Suggested usernames</p>
+                  <div className="flex flex-wrap gap-2">
+                    {usernameSuggestions.map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        onClick={() => {
+                          setError("");
+                          setUsername(suggestion);
+                        }}
+                        className="rounded-full border border-[#D3E4FE] bg-[#EFF4FF] px-3 py-1.5 text-[13px] font-semibold text-[#00696F] hover:bg-[#DCE9FF] transition"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
             <div>
               <label className="block text-sm font-semibold text-[#0B1C30] mb-2">Password</label>
@@ -317,7 +492,12 @@ export default function SignupForm() {
               <button type="button" onClick={goBack} className="font-semibold text-[#0B1C30] hover:text-gray-600 px-4">
                 Back
               </button>
-              <button type="button" onClick={goNext} className={`flex-1 ${primaryButtonClass}`}>
+              <button
+                type="button"
+                onClick={goNext}
+                disabled={usernameStatus === "checking" || usernameStatus !== "available"}
+                className={`flex-1 ${primaryButtonClass}`}
+              >
                 Next
               </button>
             </div>
@@ -357,26 +537,29 @@ export default function SignupForm() {
         <div className="w-full flex flex-col items-center">
           <h1 className="text-[24px] font-bold text-[#0B1C30] mb-2">Final Touches</h1>
           <p className="text-[#3C494A] text-[16px] mb-8 text-center">
-            You&apos;re almost there! Just a few more things.
+            Personalize your ChatTm experience.
           </p>
           <div className="w-full flex flex-col items-center gap-6">
             <input ref={photoInputRef} type="file" accept="image/png,image/jpeg,image/gif" className="hidden" onChange={handlePhoto} />
-            <button
-              type="button"
-              onClick={() => photoInputRef.current?.click()}
-              className="relative size-[120px] rounded-full bg-[#EBF3F4] border border-dashed border-[#00696F] overflow-hidden flex items-center justify-center"
-            >
-              {avatar ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={avatar} alt="Profile preview" className="size-full object-cover" />
-              ) : (
-                <Plus size={36} className="text-[#00696F]" />
-              )}
-            </button>
+            <div className="flex flex-col items-center gap-2">
+              <button
+                type="button"
+                onClick={() => photoInputRef.current?.click()}
+                className="relative size-[120px] rounded-full bg-[#EBF3F4] border border-dashed border-[#00696F] overflow-hidden flex items-center justify-center"
+              >
+                {avatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={avatar} alt="Profile preview" className="size-full object-cover" />
+                ) : (
+                  <Plus size={36} className="text-[#00696F]" />
+                )}
+              </button>
+              <p className="text-xs text-[#6B7280]">JPG, GIF or PNG. Max size of 800K</p>
+            </div>
             <div className="w-full">
-              <label className="block text-sm font-semibold text-[#0B1C30] mb-2">Add a Bio</label>
+              <label className="block text-sm font-semibold text-[#0B1C30] mb-2">Bio (Optional)</label>
               <textarea
-                placeholder="What do you do? What are you working on?"
+                placeholder="What do you do? Tell us about yourself"
                 value={bio}
                 onChange={(event) => setBio(event.target.value)}
                 className="w-full min-h-[100px] p-4 border border-[#D8D2D2] rounded-[10px] text-[#0B1C30] placeholder-gray-400 focus:outline-none focus:border-[#00696F] focus:ring-1 focus:ring-[#00696F] resize-none"
@@ -387,10 +570,104 @@ export default function SignupForm() {
               <button type="button" onClick={goBack} className="font-semibold text-[#0B1C30] hover:text-gray-600 px-4">
                 Back
               </button>
-              <button type="button" onClick={completeSignup} disabled={loading} className={`flex-1 ${primaryButtonClass}`}>
-                {loading ? "Creating account..." : "Complete"}
+              <button type="button" onClick={goNext} disabled={loading} className={`flex-1 ${primaryButtonClass}`}>
+                Complete
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {currentStep === 6 && (
+        <div className="w-full rounded-[16px] bg-white/90 p-10 shadow-[0_8px_30px_rgba(15,23,42,0.08)] border border-white/20">
+          <div className="w-full flex flex-col gap-5">
+            <div>
+              <label className="block text-[14px] font-medium text-[#0B1C30] mb-2">Select Document Type</label>
+              <div className="relative">
+                <select
+                  value={documentType}
+                  onChange={(event) => setDocumentType(event.target.value)}
+                  className={`${authInputClass} appearance-none pr-10`}
+                >
+                  {DOCUMENT_TYPES.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={18} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#6B7280]" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[14px] font-medium text-[#0B1C30] mb-2">Upload Photo</label>
+              <input
+                ref={documentInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+                className="hidden"
+                onChange={(event) => handleDocumentFile(event.target.files?.[0])}
+              />
+              <button
+                type="button"
+                onClick={() => documentInputRef.current?.click()}
+                onDragEnter={(event) => {
+                  event.preventDefault();
+                  setDragActive(true);
+                }}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  setDragActive(true);
+                }}
+                onDragLeave={(event) => {
+                  event.preventDefault();
+                  setDragActive(false);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  setDragActive(false);
+                  handleDocumentFile(event.dataTransfer.files?.[0]);
+                }}
+                className={`w-full rounded-[12px] border border-dashed px-4 py-8 flex flex-col items-center text-center transition ${
+                  dragActive ? "border-[#00696F] bg-[#E8F4F3]" : "border-[#D1D5DB] bg-white"
+                }`}
+              >
+                {documentPreview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={documentPreview} alt="Document preview" className="mb-3 h-24 rounded-lg object-contain" />
+                ) : (
+                  <img src="/figma/icons/cloud-upload.svg" alt="" width={28} height={20} className="mb-3" />
+                )}
+                <p className="text-[15px] font-semibold text-[#0B1C30]">
+                  {documentFile ? documentFile.name : "Click to upload or drag and drop"}
+                </p>
+                <p className="mt-1 text-[13px] text-[#6B7280]">SVG, PNG, JPG or WEBP (max. 10MB)</p>
+                <p className="mt-3 flex items-center gap-1.5 text-[12px] text-[#6B7280]">
+                  <Info size={14} />
+                  Ensure all text is clearly visible
+                </p>
+              </button>
+            </div>
+
+            {error ? <p className="text-sm text-red-600">{error}</p> : null}
+
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => void finishSignup("submit")}
+              className={`${primaryButtonClass} w-full flex items-center justify-center gap-2`}
+            >
+              {loading ? "Submitting..." : "Submit for Verification"}
+              {!loading ? <ArrowRight size={18} /> : null}
+            </button>
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => void finishSignup("skip")}
+              className="text-[#38BDF8] font-medium hover:underline"
+            >
+              Skip for now
+            </button>
           </div>
         </div>
       )}

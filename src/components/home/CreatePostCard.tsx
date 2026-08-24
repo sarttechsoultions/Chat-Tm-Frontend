@@ -1,31 +1,32 @@
 "use client";
 
-import React from "react";
-import Image from "next/image";
+import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { meRequest } from "../../lib/auth";
+import { UserAvatar } from "../ui/UserAvatar";
+import { useCurrentUser } from "../hooks/useCurrentUser";
 
 export default function CreatePostCard() {
   const router = useRouter();
   const openCreatePost = () => router.push("/create-post");
+  const user = useCurrentUser();
+  const firstName = user?.firstName || "User";
+  const avatar = user?.avatar || "";
+
+  useEffect(() => {
+    void meRequest().catch(() => undefined);
+  }, []);
 
   return (
     <div className="w-full bg-white rounded-[16px] p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] flex flex-col gap-4">
       <div className="flex items-center gap-4">
-        <div className="relative size-10 rounded-full overflow-hidden shrink-0">
-          <Image
-            src="/figma/photos/user.png"
-            alt="Rahul Sharma"
-            fill
-            sizes="40px"
-            className="object-cover"
-          />
-        </div>
+        <UserAvatar avatarUrl={avatar} name={firstName} size={40} />
         <button
           type="button"
           onClick={openCreatePost}
           className="w-full bg-[#F9FAFB] rounded-full px-4 py-[13px] flex items-center text-left"
         >
-          <span className="text-[16px] text-[#6B7280]">Create something amazing, Rahul!</span>
+          <span className="text-[16px] text-[#6B7280]">Create something amazing, {firstName}!</span>
         </button>
       </div>
 
@@ -48,7 +49,11 @@ export default function CreatePostCard() {
           Live Video
         </button>
 
-        <button type="button" className="flex items-center gap-2 hover:bg-gray-50 px-3 py-2 rounded-lg transition-colors text-[14px] font-medium text-[#4B5563]">
+        <button
+          type="button"
+          onClick={openCreatePost}
+          className="flex items-center gap-2 hover:bg-gray-50 px-3 py-2 rounded-lg transition-colors text-[14px] font-medium text-[#4B5563]"
+        >
           <span className="relative size-[18px] overflow-clip">
             <img src="/figma/icons/feeling.svg" alt="" width={18} height={18} className="size-full object-contain" />
           </span>

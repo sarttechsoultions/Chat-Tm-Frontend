@@ -44,10 +44,18 @@ export function StepIndicator({ currentStep, totalSteps }: { currentStep: number
   );
 }
 
-export default function CenteredAuthFrame({ children }: { children: React.ReactNode }) {
+export default function CenteredAuthFrame({
+  children,
+  contentClassName = "max-w-[388px]",
+  pageClassName = "bg-white",
+}: {
+  children: React.ReactNode;
+  contentClassName?: string;
+  pageClassName?: string;
+}) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white p-4 font-sans">
-      <div className="w-full max-w-[388px] flex flex-col items-center">{children}</div>
+    <div className={`min-h-screen flex items-center justify-center p-4 font-sans ${pageClassName}`}>
+      <div className={`w-full flex flex-col items-center ${contentClassName}`}>{children}</div>
     </div>
   );
 }

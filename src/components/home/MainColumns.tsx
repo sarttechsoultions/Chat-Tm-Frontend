@@ -14,6 +14,8 @@ export default function MainColumns({ children }: { children: React.ReactNode })
   const isAds = pathname.startsWith("/ads");
   const isAdsDashboard = pathname === "/ads";
   const isRefer = pathname.startsWith("/refer");
+  const isFriends = pathname.startsWith("/friends");
+  const isProfile = pathname.startsWith("/profile");
   const showLeftSidebar = !isCreateStory && !isMessenger && !isCall;
   const showRightSidebar =
     pathname !== "/create-post" &&
@@ -22,7 +24,9 @@ export default function MainColumns({ children }: { children: React.ReactNode })
     !isCall &&
     !isWallet &&
     !isAds &&
-    !isRefer;
+    !isRefer &&
+    !isFriends &&
+    !isProfile;
 
   if (isCall) {
     return (

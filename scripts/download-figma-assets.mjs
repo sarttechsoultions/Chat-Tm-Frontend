@@ -7,6 +7,10 @@ const outDir = join(root, "public", "figma");
 const asset = (id, ext) => `https://www.figma.com/api/mcp/asset/${id}.${ext}`;
 
 const assets = {
+  "auth/chat-tm-logo.png": asset("14ca1ce5-a081-473b-9eb0-53eace83baa1", "png"),
+  "auth/password-visibility.svg": asset("8c567157-e964-4e58-ab60-e0226a24fc59", "svg"),
+  "auth/google.svg": asset("f7d4b7c6-4796-424a-a950-b681f5a55a16", "svg"),
+  "auth/apple.svg": asset("857554b4-aed2-4be9-a624-1cd9fc8c840d", "svg"),
   "photos/user.png": asset("03e5f460-cfc6-440a-92e0-0e925d65d1c7", "png"),
   "photos/john-story.png": asset("136b0649-fd94-4b84-bbef-a3eac54b838e", "png"),
   "photos/john.png": asset("5d377fd8-127e-40b1-9300-9e1575d1f4b7", "png"),

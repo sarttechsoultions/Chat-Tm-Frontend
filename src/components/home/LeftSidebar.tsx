@@ -1,10 +1,12 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import Image from "next/image";
+import { UserAvatar } from "../ui/UserAvatar";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { displayName, getStoredUser, logoutRequest } from "../../lib/auth";
+import { displayName, logoutRequest, meRequest } from "../../lib/auth";
+import { fetchMyProfile } from "../../lib/api/profile";
+import { useCurrentUser } from "../hooks/useCurrentUser";
 
 const MENU_ITEMS = [
   { label: "Home", icon: "/figma/icons/home.svg", href: "/" },
@@ -32,16 +34,21 @@ const BOTTOM_MENU_ITEMS = [
 export default function LeftSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [name, setName] = useState("ChatTm User");
-  const [handle, setHandle] = useState("@user");
-  const [avatar, setAvatar] = useState("/figma/photos/rahul.png");
+  const currentUser = useCurrentUser();
+  const name = currentUser ? displayName(currentUser) : "ChatTm User";
+  const handle = currentUser ? `@${currentUser.username}` : "@user";
+  const avatar = currentUser?.avatar || "";
+  const [friendsCount, setFriendsCount] = useState(0);
+  const [postsCount, setPostsCount] = useState(0);
 
   useEffect(() => {
-    const user = getStoredUser();
-    if (!user) return;
-    setName(displayName(user));
-    setHandle(`@${user.username}`);
-    if (user.avatar) setAvatar(user.avatar);
+    void meRequest().catch(() => undefined);
+    fetchMyProfile()
+      .then((profile) => {
+        setFriendsCount(profile.stats.friends);
+        setPostsCount(profile.stats.posts);
+      })
+      .catch(() => {});
   }, []);
 
   return (
@@ -49,21 +56,14 @@ export default function LeftSidebar() {
    <div className="relative w-full shrink-0 rounded-[16px] bg-[#117378] p-6 flex flex-col items-center overflow-hidden shadow-[0px_4px_6px_-1px_rgba(0,0,0,0.1),0px_2px_4px_-2px_rgba(0,0,0,0.1)]">
         <div className="pointer-events-none absolute bg-white blur-[20px] opacity-10 right-[-64px] rounded-full size-[128px] top-[-64px]" />
 
-        <div className="relative z-10 mb-3 shrink-0">
-          <div className="relative size-[80px] rounded-full overflow-hidden border-4 border-white/30">
-            <Image
-              src={avatar}
-              alt={name}
-              width={80}
-              height={80}
-              className="size-full object-cover"
-            />
-          </div>
-          <span className="absolute bottom-1 right-1 size-4 bg-[#22C55E] border-2 border-white rounded-full" />
-        </div>
+        <Link href="/profile" className="relative z-10 mb-3 shrink-0">
+          <UserAvatar avatarUrl={avatar} name={name} size={80} className="!border-4 !border-white/30" isOnline={true} />
+        </Link>
 
         <div className="flex items-center gap-1.5">
-          <h2 className="text-[18px] font-bold leading-[28px] text-white">{name}</h2>
+          <Link href="/profile" className="text-[18px] font-bold leading-[28px] text-white hover:underline">
+            {name}
+          </Link>
           <span className="relative size-[14px] overflow-clip shrink-0">
             <img src="/figma/icons/verified-white.svg" alt="" width={14} height={14} className="size-full object-contain" />
           </span>
@@ -89,11 +89,11 @@ export default function LeftSidebar() {
 
         <div className="w-full grid grid-cols-3 text-center border-t border-white/20 pt-[17px]">
           <div>
-            <div className="text-[18px] font-bold leading-[28px] text-white">120</div>
+            <div className="text-[18px] font-bold leading-[28px] text-white">{friendsCount}</div>
             <div className="text-[12px] leading-[16px] text-[#DBEAFE]">Friends</div>
           </div>
           <div>
-            <div className="text-[18px] font-bold leading-[28px] text-white">53</div>
+            <div className="text-[18px] font-bold leading-[28px] text-white">{postsCount}</div>
             <div className="text-[12px] leading-[16px] text-[#DBEAFE]">Posts</div>
           </div>
           <div>
