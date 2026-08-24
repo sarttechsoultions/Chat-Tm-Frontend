@@ -27,7 +27,7 @@ const ATTENDEES = [
 
 export default function RightSidebar() {
   return (
-    <aside className="w-[300px] flex flex-col gap-6 py-2 font-sans select-none h-full overflow-y-auto no-scrollbar">
+    <aside className="flex h-full w-full flex-col gap-6 overflow-y-auto py-2 font-sans no-scrollbar select-none">
       <div className="bg-white rounded-[16px] p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <h3 className="text-[16px] font-bold text-[#111827] leading-6">Sponsored</h3>

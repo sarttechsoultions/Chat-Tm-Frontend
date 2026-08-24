@@ -33,7 +33,7 @@ export default function VideoCallUI({ connected = false }: VideoCallUIProps) {
 
   if (!connected) {
     return (
-      <div className="h-full w-full bg-white flex flex-col items-center justify-between px-12 pt-10 pb-16">
+      <div className="flex h-full w-full flex-col items-center justify-between bg-white px-4 pt-8 pb-10 sm:px-12 sm:pt-10 sm:pb-16">
         <div className="flex flex-col items-center">
           <div className="pb-10">
             <PulsingCallAvatar src="/figma/photos/emma-call.png" />
@@ -46,7 +46,7 @@ export default function VideoCallUI({ connected = false }: VideoCallUIProps) {
           </div>
         </div>
 
-        <div className="w-full max-w-[1102px] flex items-end justify-center gap-16 md:gap-40 rounded-[32px] border border-white/50 bg-[rgba(248,249,255,0.7)] p-[25px] shadow-[0px_10px_15px_-3px_rgba(0,0,0,0.1),0px_4px_6px_-4px_rgba(0,0,0,0.1)] backdrop-blur-[6px]">
+        <div className="w-full max-w-[1102px] flex items-end justify-center gap-6 sm:gap-16 md:gap-40 rounded-[32px] border border-white/50 bg-[rgba(248,249,255,0.7)] p-4 sm:p-[25px] shadow-[0px_10px_15px_-3px_rgba(0,0,0,0.1),0px_4px_6px_-4px_rgba(0,0,0,0.1)] backdrop-blur-[6px]">
           <button type="button" onClick={() => setMuted((value) => !value)} className="flex flex-col items-center gap-2">
             <span className="flex size-14 items-center justify-center rounded-full bg-[#DCE9FF]">
               <FigmaIcon src="/figma/icons/video-call-mute.svg" alt="" width={16} height={22} />
@@ -96,8 +96,8 @@ export default function VideoCallUI({ connected = false }: VideoCallUIProps) {
         </div>
       </div>
 
-      <div className="absolute right-8 bottom-36 z-10 w-[256px] overflow-hidden rounded-[12px] border-2 border-[rgba(248,249,255,0.2)] bg-white shadow-[0px_20px_40px_0px_rgba(19,27,46,0.2)]">
-        <div className="relative h-[140px] w-full">
+      <div className="absolute right-3 bottom-28 z-10 w-[120px] overflow-hidden rounded-[12px] border-2 border-[rgba(248,249,255,0.2)] bg-white shadow-[0px_20px_40px_0px_rgba(19,27,46,0.2)] sm:right-8 sm:bottom-36 sm:w-[256px]">
+        <div className="relative h-[88px] w-full sm:h-[140px]">
           <Image src="/figma/photos/call-self.png" alt="You" fill sizes="256px" className="object-cover object-top" />
           <span className="absolute bottom-2 left-2 rounded px-2 py-1 bg-black/50 text-[12px] leading-4 tracking-[0.24px] font-semibold text-white">
             You
@@ -106,8 +106,8 @@ export default function VideoCallUI({ connected = false }: VideoCallUIProps) {
       </div>
 
       <div className="absolute bottom-6 left-1/2 z-10 flex w-[min(100%-32px,560px)] -translate-x-1/2 items-center justify-center">
-        <div className="flex h-[74px] w-full items-center justify-between rounded-full border border-[rgba(187,201,202,0.3)] bg-[rgba(248,249,255,0.8)] px-6 shadow-[0px_10px_30px_0px_rgba(11,28,48,0.15)] backdrop-blur-[12px]">
-          <div className="flex items-center gap-4">
+        <div className="flex h-[62px] w-full items-center justify-between overflow-x-auto no-scrollbar rounded-full border border-[rgba(187,201,202,0.3)] bg-[rgba(248,249,255,0.8)] px-3 shadow-[0px_10px_30px_0px_rgba(11,28,48,0.15)] backdrop-blur-[12px] sm:h-[74px] sm:px-6">
+          <div className="flex items-center gap-3 sm:gap-4">
             {VIDEO_ACTIONS.slice(0, 2).map((action) => (
               <button
                 key={action.label}

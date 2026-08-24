@@ -16,6 +16,7 @@ import {
   LayoutDashboard,
   LogOut,
   Megaphone,
+  Menu,
   MessageSquare,
   Monitor,
   Settings,
@@ -142,7 +143,47 @@ export function AdminSidebar() {
   );
 }
 
-export function AdminHeader() {
+export function AdminFrame({ children }: { children: React.ReactNode }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const pathname = usePathname();
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
+  return (
+    <div className="flex h-[100dvh] overflow-hidden bg-[#F5F7F7]">
+      <div className="hidden h-full lg:flex">
+        <AdminSidebar />
+      </div>
+
+      <div
+        className={`fixed inset-0 z-40 lg:hidden ${menuOpen ? "pointer-events-auto" : "pointer-events-none"}`}
+      >
+        <button
+          type="button"
+          aria-label="Close admin menu"
+          onClick={() => setMenuOpen(false)}
+          className={`absolute inset-0 bg-black/40 transition-opacity ${menuOpen ? "opacity-100" : "opacity-0"}`}
+        />
+        <div
+          className={`absolute inset-y-0 left-0 h-full w-[min(86vw,260px)] bg-[#FDFDFD] shadow-[8px_0_24px_rgba(0,0,0,0.16)] transition-transform duration-300 ${
+            menuOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
+            {menuOpen ? <AdminSidebar /> : null}
+        </div>
+      </div>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <AdminHeader onMenuClick={() => setMenuOpen(true)} />
+        <main className="min-h-0 flex-1 overflow-y-auto no-scrollbar p-4 sm:p-6">{children}</main>
+      </div>
+    </div>
+  );
+}
+
+export function AdminHeader({ onMenuClick }: { onMenuClick?: () => void }) {
   const [name, setName] = useState(() => {
     const user = getStoredUser();
     return user ? displayName(user) : "Admin";
@@ -157,8 +198,18 @@ export function AdminHeader() {
   }, []);
 
   return (
-    <header className="h-[72px] shrink-0 bg-white border-b border-[#F0F0F0] px-8 flex items-center gap-6 shadow-[0_2px_8px_rgba(0,0,0,0.02)] z-10 relative">
-      <label className="flex-1 max-w-[500px] h-10 rounded-full border border-[#E5E7EB] bg-[#F9FAFB] px-4 flex items-center gap-3 transition-colors focus-within:border-[#00696F] focus-within:bg-white shadow-inner shadow-black/5">
+    <header className="relative z-10 flex h-14 shrink-0 items-center gap-3 border-b border-[#F0F0F0] bg-white px-3 shadow-[0_2px_8px_rgba(0,0,0,0.02)] sm:h-[72px] sm:gap-6 sm:px-8">
+      {onMenuClick ? (
+        <button
+          type="button"
+          onClick={onMenuClick}
+          aria-label="Open admin menu"
+          className="flex size-10 items-center justify-center rounded-full hover:bg-[#F3F4F6] lg:hidden"
+        >
+          <Menu className="size-5 text-[#0B1C30]" />
+        </button>
+      ) : null}
+      <label className="flex h-10 min-w-0 flex-1 max-w-[500px] items-center gap-3 rounded-full border border-[#E5E7EB] bg-[#F9FAFB] px-3 shadow-inner shadow-black/5 transition-colors focus-within:border-[#00696F] focus-within:bg-white sm:px-4">
         <span className="inline-flex size-[18px] overflow-clip shrink-0">
           <img
             src="/figma/icons/search.svg"
@@ -184,7 +235,7 @@ export function AdminHeader() {
           <Bell className="size-[22px]" />
           <span className="absolute top-2 right-2.5 size-2 rounded-full bg-[#EF4444] ring-2 ring-white" />
         </button>
-        <div className="h-[42px] pl-2 pr-4 rounded-full border border-[#E5E7EB] bg-white flex items-center gap-3 shadow-sm cursor-pointer hover:bg-gray-50 transition-colors">
+        <div className="hidden h-[42px] cursor-pointer items-center gap-3 rounded-full border border-[#E5E7EB] bg-white pl-2 pr-4 shadow-sm hover:bg-gray-50 transition-colors sm:flex">
           <UserAvatar avatarUrl={avatar} name={name} size={32} />
           <div className="flex flex-col justify-center">
             <p className="text-[13px] font-bold leading-4 text-[#111827]">{name}</p>

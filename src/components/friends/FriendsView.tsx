@@ -189,15 +189,15 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
   }
 
   return (
-    <section className="mx-auto w-full max-w-[906px] rounded-[12px] bg-[#F9FAFB] px-5 pb-8 pt-[10px] shadow-[0_0_4px_rgba(0,0,0,0.25)] sm:px-8">
+    <section className="mx-auto w-full max-w-[906px] rounded-[12px] bg-[#F9FAFB] px-3 pb-8 pt-[10px] shadow-[0_0_4px_rgba(0,0,0,0.25)] sm:px-8">
       <header className="border-b border-[#E5E7EB]">
-        <h1 className="text-[24px] font-bold leading-8 text-[#111827]">
+        <h1 className="text-[22px] font-bold leading-8 text-[#111827] sm:text-[24px]">
           {title}
         </h1>
         <p className="mt-1 text-[14px] leading-5 text-[#6B7280]">{subtitle}</p>
         <nav
           aria-label="Friends sections"
-          className="mt-5 flex gap-5 overflow-x-auto whitespace-nowrap sm:gap-8"
+          className="mt-5 flex gap-5 overflow-x-auto no-scrollbar whitespace-nowrap sm:gap-8"
         >
           {tabs.map((item) => (
             <Link

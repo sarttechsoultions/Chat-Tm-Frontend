@@ -21,7 +21,7 @@ export function AuthLogo() {
 export function StepIndicator({ currentStep, totalSteps }: { currentStep: number; totalSteps: number }) {
   return (
     <div className="flex flex-col items-center mb-8">
-      <div className="flex gap-4 mb-2">
+      <div className="mb-2 flex max-w-full gap-2 overflow-x-auto no-scrollbar sm:gap-4">
         {Array.from({ length: totalSteps }, (_, index) => {
           const step = index + 1;
           const active = currentStep === step;

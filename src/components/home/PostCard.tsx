@@ -410,7 +410,7 @@ export default function PostCard({
         </div>
       ) : null}
 
-      <div className="flex items-center justify-between border-b border-[#F3F4F6] py-2">
+      <div className="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar border-b border-[#F3F4F6] py-2">
         <div className="flex min-h-5 items-center gap-1">
           {post.likesCount > 0 ? (
             <>
@@ -432,7 +432,7 @@ export default function PostCard({
             <span className="text-[14px] text-[#9CA3AF]">Be the first to like</span>
           )}
         </div>
-        <div className="flex items-center gap-4 text-[14px] text-[#6B7280]">
+        <div className="flex shrink-0 items-center gap-3 text-[12px] text-[#6B7280] sm:gap-4 sm:text-[14px]">
           <button type="button" onClick={() => void toggleComments()} className="cursor-pointer hover:underline">
             {formatCount(post.commentsCount)} Comments
           </button>
@@ -440,11 +440,11 @@ export default function PostCard({
         </div>
       </div>
 
-      <div className="flex items-center justify-between px-2">
+      <div className="flex items-center justify-around sm:justify-between sm:px-2">
         <button
           type="button"
           onClick={() => void handleLike()}
-          className={`relative flex cursor-pointer items-center gap-2 px-4 py-2 rounded-lg text-[14px] transition-all ${
+          className={`relative flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-2 text-[13px] transition-all sm:gap-2 sm:px-4 sm:text-[14px] ${
             post.liked
               ? "font-semibold text-[#00696F] bg-[rgba(0,105,111,0.12)]"
               : "font-medium text-[#4B5563] hover:bg-gray-50"
@@ -471,7 +471,7 @@ export default function PostCard({
         <button
           type="button"
           onClick={() => void toggleComments()}
-          className={`flex cursor-pointer items-center gap-2 px-4 py-2 rounded-lg text-[14px] font-medium ${
+          className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-2 text-[13px] font-medium sm:gap-2 sm:px-4 sm:text-[14px] ${
             showComments ? "text-[#00696F] bg-[rgba(0,105,111,0.12)]" : "text-[#4B5563] hover:bg-gray-50"
           }`}
         >
@@ -488,7 +488,7 @@ export default function PostCard({
               setShareNotice("");
               setSentChatId("");
             }}
-            className="flex cursor-pointer items-center gap-2 px-4 py-2 rounded-lg text-[14px] font-medium text-[#4B5563] hover:bg-gray-50"
+            className="flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-2 text-[13px] font-medium text-[#4B5563] hover:bg-gray-50 sm:gap-2 sm:px-4 sm:text-[14px]"
           >
             <span className="relative w-[14px] h-[12px] overflow-clip">
               <img src="/figma/icons/share.svg" alt="" width={14} height={12} className="size-full object-contain" />

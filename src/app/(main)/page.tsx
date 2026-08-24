@@ -28,7 +28,7 @@ export default function HomeFeed() {
   }, [loadPosts]);
 
   return (
-    <div className="w-full max-w-[604px] mx-auto flex flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-[604px] flex-col gap-4 sm:gap-6">
       <CreatePostCard />
       <StoriesSection />
       {error ? (

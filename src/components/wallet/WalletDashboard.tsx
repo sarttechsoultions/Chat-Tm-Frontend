@@ -146,7 +146,7 @@ function DashboardScreen() {
     <div className="w-full max-w-[760px] pt-2 pb-12 px-1">
       <PageHeader title="My Wallet Dashboard" backHref="/" />
 
-      <div className="flex items-stretch gap-3 mb-6">
+      <div className="mb-6 flex flex-col items-stretch gap-3 sm:flex-row">
         <div className="flex-1 min-w-0 rounded-[16px] bg-[#00696F] text-white p-5 shadow-[0px_8px_16px_rgba(0,105,111,0.18)] relative overflow-hidden">
           <div className="absolute right-4 top-4 size-9 rounded-full bg-white/20 flex items-center justify-center">
             <TintedIcon src="/figma/icons/wallet.svg" color="#FFFFFF" width={16} height={15} />
@@ -167,7 +167,7 @@ function DashboardScreen() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 shrink-0 w-[96px] sm:w-[108px]">
+        <div className="flex w-full shrink-0 flex-row gap-3 sm:w-[108px] sm:flex-col">
           <Link
             href="/wallet/add"
             className="flex-1 bg-white rounded-[12px] border border-[#E5E7EB] shadow-[0px_1px_3px_rgba(0,0,0,0.06)] flex flex-col items-center justify-center gap-2 px-2 py-3 hover:bg-[#F9FAFB] transition-colors"
