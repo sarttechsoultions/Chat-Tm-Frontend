@@ -1,10 +1,9 @@
 import { getSessionToken } from "../auth";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
+import { apiUrl } from "../apiUrl";
 
 async function chatRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getSessionToken();
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(apiUrl(path), {
     ...options,
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
