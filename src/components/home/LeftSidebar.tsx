@@ -1,9 +1,12 @@
 "use client";
 
-import React from "react";
-import Image from "next/image";
+import React, { useEffect, useState } from "react";
+import { UserAvatar } from "../ui/UserAvatar";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { displayName, logoutRequest, meRequest } from "../../lib/auth";
+import { fetchMyProfile } from "../../lib/api/profile";
+import { useCurrentUser } from "../hooks/useCurrentUser";
 
 const MENU_ITEMS = [
   { label: "Home", icon: "/figma/icons/home.svg", href: "/" },
@@ -26,37 +29,46 @@ function isMenuActive(pathname: string, href: string) {
 const BOTTOM_MENU_ITEMS = [
   { label: "Settings", icon: "/figma/icons/settings.svg", href: "/settings" },
   { label: "Help & Support", icon: "/figma/icons/help.svg", href: "/support" },
-  { label: "Logout", icon: "/figma/icons/logout.svg", href: "/logout" },
 ];
 
 export default function LeftSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const currentUser = useCurrentUser();
+  const name = currentUser ? displayName(currentUser) : "ChatTm User";
+  const handle = currentUser ? `@${currentUser.username}` : "@user";
+  const avatar = currentUser?.avatar || "";
+  const [friendsCount, setFriendsCount] = useState(0);
+  const [postsCount, setPostsCount] = useState(0);
+
+  useEffect(() => {
+    void meRequest().catch(() => undefined);
+    fetchMyProfile()
+      .then((profile) => {
+        setFriendsCount(profile.stats.friends);
+        setPostsCount(profile.stats.posts);
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <aside className="w-full flex flex-col gap-6 p-[10px] bg-white rounded-[10px] shadow-[0px_4px_2px_rgba(0,0,0,0.25)] font-sans select-none">
    <div className="relative w-full shrink-0 rounded-[16px] bg-[#117378] p-6 flex flex-col items-center overflow-hidden shadow-[0px_4px_6px_-1px_rgba(0,0,0,0.1),0px_2px_4px_-2px_rgba(0,0,0,0.1)]">
         <div className="pointer-events-none absolute bg-white blur-[20px] opacity-10 right-[-64px] rounded-full size-[128px] top-[-64px]" />
 
-        <div className="relative z-10 mb-3 shrink-0">
-          <div className="relative size-[80px] rounded-full overflow-hidden border-4 border-white/30">
-            <Image
-              src="/figma/photos/rahul.png"
-              alt="Rahul Sharma"
-              width={80}
-              height={80}
-              className="size-full object-cover"
-            />
-          </div>
-          <span className="absolute bottom-1 right-1 size-4 bg-[#22C55E] border-2 border-white rounded-full" />
-        </div>
+        <Link href="/profile" className="relative z-10 mb-3 shrink-0">
+          <UserAvatar avatarUrl={avatar} name={name} size={80} className="!border-4 !border-white/30" isOnline={true} />
+        </Link>
 
         <div className="flex items-center gap-1.5">
-          <h2 className="text-[18px] font-bold leading-[28px] text-white">Rahul Sharma</h2>
+          <Link href="/profile" className="text-[18px] font-bold leading-[28px] text-white hover:underline">
+            {name}
+          </Link>
           <span className="relative size-[14px] overflow-clip shrink-0">
             <img src="/figma/icons/verified-white.svg" alt="" width={14} height={14} className="size-full object-contain" />
           </span>
         </div>
-        <p className="text-[14px] leading-[20px] text-[#DBEAFE] mb-4">@rahulsharma</p>
+        <p className="text-[14px] leading-[20px] text-[#DBEAFE] mb-4">{handle}</p>
 
         <div className="w-full backdrop-blur-[6px] bg-white/20 border border-white/20 rounded-[12px] px-[13px] py-[9px] flex items-center gap-2 mb-2">
           <span className="relative size-[14px] overflow-clip shrink-0">
@@ -77,11 +89,11 @@ export default function LeftSidebar() {
 
         <div className="w-full grid grid-cols-3 text-center border-t border-white/20 pt-[17px]">
           <div>
-            <div className="text-[18px] font-bold leading-[28px] text-white">120</div>
+            <div className="text-[18px] font-bold leading-[28px] text-white">{friendsCount}</div>
             <div className="text-[12px] leading-[16px] text-[#DBEAFE]">Friends</div>
           </div>
           <div>
-            <div className="text-[18px] font-bold leading-[28px] text-white">53</div>
+            <div className="text-[18px] font-bold leading-[28px] text-white">{postsCount}</div>
             <div className="text-[12px] leading-[16px] text-[#DBEAFE]">Posts</div>
           </div>
           <div>
@@ -126,6 +138,20 @@ export default function LeftSidebar() {
             <span>{label}</span>
           </Link>
         ))}
+        <button
+          type="button"
+          onClick={async () => {
+            await logoutRequest();
+            router.replace("/login");
+            router.refresh();
+          }}
+          className="flex items-center gap-3 px-4 py-3 rounded-[12px] text-[#4B5563] font-medium text-[16px] hover:bg-gray-50 transition-all"
+        >
+          <span className="relative w-5 h-5 overflow-clip shrink-0">
+            <img src="/figma/icons/logout.svg" alt="" width={20} height={20} className="size-full object-contain" />
+          </span>
+          <span>Logout</span>
+        </button>
       </nav>
     </aside>
   );

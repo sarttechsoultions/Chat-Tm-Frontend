@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import FigmaIcon from "../home/FigmaIcon";
+import { UserAvatar } from "../ui/UserAvatar";
 import {
   formatInr,
   markCreated,
@@ -51,7 +52,7 @@ const BASE_TRANSACTIONS = [
     detail: "@amitsharma • Money Sent",
     amount: -750,
     time: "Today, 10:30 AM",
-    avatar: "/figma/photos/contact-2.png",
+    avatar: "",
   },
   {
     id: "priya",
@@ -59,7 +60,7 @@ const BASE_TRANSACTIONS = [
     detail: "@priyaverma • Money Received",
     amount: 1500,
     time: "Yesterday, 05:20 PM",
-    avatar: "/figma/photos/contact-4.png",
+    avatar: "",
   },
   {
     id: "upi",
@@ -75,7 +76,7 @@ const BASE_TRANSACTIONS = [
     detail: "@rohansingh • Money Sent",
     amount: -500,
     time: "09 May, 11:45 AM",
-    avatar: "/figma/photos/contact-3.png",
+    avatar: "",
   },
 ];
 
@@ -208,11 +209,7 @@ function DashboardScreen() {
                 index < transactions.length - 1 ? "border-b border-[#F3F4F6]" : ""
               }`}
             >
-              {tx.avatar ? (
-                <span className="relative size-10 rounded-full overflow-hidden shrink-0">
-                  <Image src={tx.avatar} alt="" fill sizes="40px" className="object-cover" />
-                </span>
-              ) : (
+              {tx.icon ? (
                 <span className="size-10 rounded-full bg-[rgba(0,105,111,0.12)] flex items-center justify-center overflow-clip shrink-0">
                   <img
                     src={tx.icon}
@@ -222,6 +219,8 @@ function DashboardScreen() {
                     className="size-[22px] object-cover object-bottom"
                   />
                 </span>
+              ) : (
+                <UserAvatar avatarUrl={tx.avatar} name={tx.name} size={40} />
               )}
               <div className="min-w-0 flex-1">
                 <p className="text-[14px] font-semibold leading-5 text-[#0B1C30] truncate">{tx.name}</p>

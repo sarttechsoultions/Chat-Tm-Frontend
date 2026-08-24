@@ -2,6 +2,7 @@
 
 import React from "react";
 import Image from "next/image";
+import { UserAvatar } from "../ui/UserAvatar";
 
 const TRENDING_TAGS = [
   { tag: "WebDesign", posts: "12.8K posts", iconColor: "text-[#EC4899]", iconBg: "bg-[#FDF2F8]" },
@@ -10,18 +11,18 @@ const TRENDING_TAGS = [
 ];
 
 const CONTACTS = [
-  { name: "Emma Watson", avatar: "/figma/photos/contact-1.png", online: true },
-  { name: "John Doe", avatar: "/figma/photos/contact-2.png", online: true },
-  { name: "Michael Scott", avatar: "/figma/photos/contact-3.png", online: false, time: "12m", dimmed: true },
-  { name: "Sophia Lee", avatar: "/figma/photos/contact-4.png", online: true },
-  { name: "Chris Evans", avatar: "/figma/photos/contact-5.png", online: false, time: "1h" },
+  { name: "Emma Watson", avatar: "", online: true },
+  { name: "John Doe", avatar: "", online: true },
+  { name: "Michael Scott", avatar: "", online: false, time: "12m", dimmed: true },
+  { name: "Sophia Lee", avatar: "", online: true },
+  { name: "Chris Evans", avatar: "", online: false, time: "1h" },
 ];
 
 const ATTENDEES = [
-  "/figma/photos/attendee-1.png",
-  "/figma/photos/attendee-2.png",
-  "/figma/photos/attendee-3.png",
-  "/figma/photos/attendee-4.png",
+  { name: "Alice", avatar: "" },
+  { name: "Bob", avatar: "" },
+  { name: "Charlie", avatar: "" },
+  { name: "David", avatar: "" },
 ];
 
 export default function RightSidebar() {
@@ -96,14 +97,13 @@ export default function RightSidebar() {
           {CONTACTS.map((contact) => (
             <div key={contact.name} className="flex items-center justify-between cursor-pointer">
               <div className="flex items-center gap-3">
-                <div className="relative">
-                  <div className={`relative size-8 rounded-full overflow-hidden shrink-0 ${contact.dimmed ? "opacity-60" : ""}`}>
-                    <Image src={contact.avatar} alt={contact.name} fill sizes="32px" className="object-cover" />
-                  </div>
-                  {contact.online && (
-                    <span className="absolute bottom-0 right-0 size-2.5 bg-[#22C55E] border-2 border-white rounded-full" />
-                  )}
-                </div>
+                <UserAvatar
+                  avatarUrl={contact.avatar}
+                  name={contact.name}
+                  size={32}
+                  isOnline={contact.online}
+                  className={contact.dimmed ? "opacity-60" : ""}
+                />
                 <span className={`text-[14px] font-medium text-[#1F2937] ${contact.dimmed ? "opacity-80" : ""}`}>
                   {contact.name}
                 </span>
@@ -137,13 +137,14 @@ export default function RightSidebar() {
             <p className="text-[12px] text-[#6B7280]">Online Event</p>
             <div className="flex items-center mt-2">
               <div className="flex">
-                {ATTENDEES.map((img, i) => (
-                  <div
-                    key={img}
-                    className={`relative size-6 rounded-full border-2 border-white overflow-hidden ${i > 0 ? "-ml-2" : ""}`}
-                  >
-                    <Image src={img} alt="attendee" fill sizes="24px" className="object-cover" />
-                  </div>
+                {ATTENDEES.map((att, i) => (
+                  <UserAvatar
+                    key={att.name}
+                    avatarUrl={att.avatar}
+                    name={att.name}
+                    size={24}
+                    className={`!border-2 !border-white ${i > 0 ? "-ml-2" : ""}`}
+                  />
                 ))}
               </div>
               <span className="text-[12px] text-[#6B7280] font-medium pl-2">+85</span>

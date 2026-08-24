@@ -3,12 +3,13 @@
 import React, { useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { UserAvatar } from "../ui/UserAvatar";
 
 const STORIES = [
-  { name: "John", img: "/figma/photos/john-story.png", avatar: "/figma/photos/john.png" },
-  { name: "Emma", img: "/figma/photos/emma-story.png", avatar: "/figma/photos/emma.png" },
-  { name: "Michael", img: "/figma/photos/michael-story.png", avatar: "/figma/photos/michael.png" },
-  { name: "Sophia", img: "/figma/photos/sophia-story.png", avatar: "/figma/photos/sophia.png" },
+  { name: "John", img: "/figma/photos/john-story.png", avatar: "" },
+  { name: "Emma", img: "/figma/photos/emma-story.png", avatar: "" },
+  { name: "Michael", img: "/figma/photos/michael-story.png", avatar: "" },
+  { name: "Sophia", img: "/figma/photos/sophia-story.png", avatar: "" },
 ];
 
 export default function StoriesSection() {
@@ -57,10 +58,8 @@ export default function StoriesSection() {
                 className="object-cover group-hover:scale-105 transition-transform duration-300"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-              <div className="absolute top-2 left-2 size-8 rounded-full border-2 border-[#00696F] overflow-hidden p-0.5">
-                <div className="relative size-full rounded-full overflow-hidden">
-                  <Image src={story.avatar} alt={story.name} fill sizes="24px" className="object-cover" />
-                </div>
+              <div className="absolute top-2 left-2">
+                <UserAvatar avatarUrl={story.avatar} name={story.name} size={32} className="!border-2 !border-[#00696F]" />
               </div>
               <span className="absolute bottom-2 left-2 text-[12px] font-medium text-white leading-4">
                 {story.name}
