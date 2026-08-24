@@ -1,5 +1,5 @@
-import NavSectionPage from "../../../components/home/NavSectionPage";
+import GroupsView from "../../../components/groups/GroupsView";
 
 export default function GroupsPage() {
-  return <NavSectionPage title="Groups" />;
+  return <GroupsView tab="mine" />;
 }

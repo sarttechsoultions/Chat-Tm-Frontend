@@ -14,6 +14,7 @@ export default function MainColumns({ children }: { children: React.ReactNode })
   const isAds = pathname.startsWith("/ads");
   const isRefer = pathname.startsWith("/refer");
   const isFriends = pathname.startsWith("/friends");
+  const isGroups = pathname.startsWith("/groups");
   const isProfile = pathname.startsWith("/profile");
   const showLeftSidebar = !isCreateStory && !isMessenger && !isCall;
   const showRightSidebar =
@@ -25,6 +26,7 @@ export default function MainColumns({ children }: { children: React.ReactNode })
     !isAds &&
     !isRefer &&
     !isFriends &&
+    !isGroups &&
     !isProfile;
 
   const mobilePad =

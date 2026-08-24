@@ -319,6 +319,14 @@ export default function PostCard({
                   <img src="/figma/icons/verified.svg" alt="" width={14} height={14} className="size-full object-contain" />
                 </span>
               )}
+              {post.group ? (
+                <>
+                  <span className="text-[14px] text-[#6B7280]">›</span>
+                  <Link href={`/groups/${post.group.id}`} className="text-[14px] font-semibold text-[#00696F] hover:underline">
+                    {post.group.name}
+                  </Link>
+                </>
+              ) : null}
               {post.feeling ? (
                 <span className="text-[14px] font-normal text-[#4B5563]">is feeling {post.feeling}</span>
               ) : null}
@@ -383,6 +391,9 @@ export default function PostCard({
         </div>
       </div>
 
+      {post.heading ? (
+        <h3 className="pt-1 text-[18px] font-bold leading-6 text-[#111827]">{post.heading}</h3>
+      ) : null}
       {post.body ? (
         <p className="text-[14px] leading-5 text-[#1F2937] whitespace-pre-line pt-1">
           {renderCaption(post.body)}

@@ -40,6 +40,7 @@ export default function LeftSidebar({ onNavigate }: { onNavigate?: () => void })
   const avatar = currentUser?.avatar || "";
   const [friendsCount, setFriendsCount] = useState(0);
   const [postsCount, setPostsCount] = useState(0);
+  const [groupsCount, setGroupsCount] = useState(0);
 
   useEffect(() => {
     void meRequest().catch(() => undefined);
@@ -47,6 +48,7 @@ export default function LeftSidebar({ onNavigate }: { onNavigate?: () => void })
       .then((profile) => {
         setFriendsCount(profile.stats.friends);
         setPostsCount(profile.stats.posts);
+        setGroupsCount(profile.stats.groups || 0);
       })
       .catch(() => {});
   }, []);
@@ -97,7 +99,7 @@ export default function LeftSidebar({ onNavigate }: { onNavigate?: () => void })
             <div className="text-[12px] leading-[16px] text-[#DBEAFE]">Posts</div>
           </div>
           <div>
-            <div className="text-[18px] font-bold leading-[28px] text-white">28</div>
+            <div className="text-[18px] font-bold leading-[28px] text-white">{groupsCount}</div>
             <div className="text-[12px] leading-[16px] text-[#DBEAFE]">Groups</div>
           </div>
         </div>
