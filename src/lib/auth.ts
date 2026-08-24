@@ -88,9 +88,15 @@ function readCookie(name: string) {
   return match ? decodeURIComponent(match.split("=").slice(1).join("=")) : null;
 }
 
+function isUsableToken(token: string | null) {
+  if (!token || token === "undefined" || token === "null") return false;
+  return /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token);
+}
+
 export function getSessionToken() {
   if (typeof window === "undefined") return null;
-  return readCookie(SESSION_COOKIE) || localStorage.getItem(TOKEN_KEY);
+  const token = readCookie(SESSION_COOKIE) || localStorage.getItem(TOKEN_KEY);
+  return isUsableToken(token) ? token : null;
 }
 
 export function getStoredUser(): AuthUser | null {
@@ -119,6 +125,9 @@ export function notifyUserUpdated() {
 }
 
 export function setSession(token: string, user: AuthUser, remember = true) {
+  if (!isUsableToken(token)) {
+    throw new Error("Cannot start a session without a valid token");
+  }
   const maxAge = remember ? 60 * 60 * 24 * 30 : 60 * 60 * 24 * 7;
   writeCookie(SESSION_COOKIE, token, maxAge);
   writeCookie(ROLE_COOKIE, user.role, maxAge);
