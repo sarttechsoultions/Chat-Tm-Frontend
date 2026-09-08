@@ -5,7 +5,9 @@ import FigmaIcon from "../home/FigmaIcon";
 import { UserAvatar } from "../ui/UserAvatar";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { createPost, type PostItem } from "../../lib/api/posts";
+import { formatFileSize, preparePostFiles } from "../../lib/media";
 import { EmojiSheet, FeelingPicker } from "../posts/PostExtras";
+import ImageCropEditor from "../posts/ImageCropEditor";
 
 const ACTIONS = [
   { id: "media" as const, label: "Photo/Video", icon: "/figma/icons/photo.svg", size: { w: 18, h: 16 } },
@@ -33,6 +35,7 @@ export default function GroupPostComposer({
   const [sheet, setSheet] = useState<"feeling" | "emoji" | null>(null);
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState("");
+  const [cropIndex, setCropIndex] = useState<number | null>(null);
 
   const previews = useMemo(
     () =>
@@ -52,18 +55,33 @@ export default function GroupPostComposer({
 
   const canPost = Boolean(heading.trim() || body.trim() || files.length) && !posting;
 
-  function applyFiles(incoming: FileList | File[] | null) {
+  async function applyFiles(incoming: FileList | File[] | null) {
     if (!incoming?.length) return;
-    const next = Array.from(incoming)
-      .filter((file) => file.type.startsWith("image/") || file.type.startsWith("video/"))
-      .slice(0, 6);
-    if (!next.length) {
-      setError("Choose a JPG, PNG, or MP4 file.");
+    const remaining = Math.max(0, 6 - files.length);
+    if (!remaining) {
+      setError("You can attach up to 6 photos or videos.");
       return;
     }
-    setError("");
-    setFiles(next);
-    setExpanded(true);
+    const allowed = Array.from(incoming).filter(
+      (file) => file.type.startsWith("image/") || file.type.startsWith("video/"),
+    );
+    if (!allowed.length) {
+      setError("Choose a JPG, PNG, WEBP, or MP4 file.");
+      return;
+    }
+    try {
+      const prepared = await preparePostFiles(allowed.slice(0, remaining));
+      setError("");
+      const startIndex = files.length;
+      setFiles((current) => [...current, ...prepared].slice(0, 6));
+      setExpanded(true);
+      const firstImage = prepared.findIndex(
+        (file) => file.type.startsWith("image/") && file.type !== "image/gif",
+      );
+      if (firstImage >= 0) setCropIndex(startIndex + firstImage);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to add media.");
+    }
   }
 
   function insertEmoji(emoji: string) {
@@ -164,12 +182,24 @@ export default function GroupPostComposer({
       {previews.length ? (
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {previews.map((item, index) => (
-            <div key={item.url} className="relative h-28 overflow-hidden rounded-[12px] bg-black">
+            <div key={item.url} className="relative aspect-[4/5] overflow-hidden rounded-[12px] bg-black">
               {item.type === "video" ? (
-                <video src={item.url} className="size-full object-cover" muted />
+                <video src={item.url} className="size-full object-contain bg-black" muted />
               ) : (
-                <img src={item.url} alt="" className="size-full object-cover" />
+                <button
+                  type="button"
+                  className="size-full"
+                  aria-label="Crop photo"
+                  onClick={() => setCropIndex(index)}
+                >
+                  <img src={item.url} alt="" className="size-full object-cover" />
+                </button>
               )}
+              <span className="pointer-events-none absolute bottom-1.5 left-1.5 rounded-[6px] bg-black/55 px-2 py-0.5 text-[10px] font-semibold text-white">
+                {item.type === "video"
+                  ? formatFileSize(files[index]?.size || 0)
+                  : `Crop · ${formatFileSize(files[index]?.size || 0)}`}
+              </span>
               <button
                 type="button"
                 aria-label="Remove file"
@@ -178,11 +208,6 @@ export default function GroupPostComposer({
               >
                 ✕
               </button>
-              {item.type === "video" ? (
-                <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-semibold text-white">
-                  Video
-                </span>
-              ) : null}
             </div>
           ))}
         </div>
@@ -194,7 +219,10 @@ export default function GroupPostComposer({
         accept="image/jpeg,image/png,image/webp,video/mp4,video/webm"
         multiple
         className="hidden"
-        onChange={(event) => applyFiles(event.target.files)}
+        onChange={(event) => {
+          void applyFiles(event.target.files);
+          event.target.value = "";
+        }}
       />
 
       {error ? (
@@ -242,6 +270,17 @@ export default function GroupPostComposer({
             insertEmoji(emoji);
           }}
           onClose={() => setSheet(null)}
+        />
+      ) : null}
+      {cropIndex !== null && previews[cropIndex] && !files[cropIndex]?.type.startsWith("video/") ? (
+        <ImageCropEditor
+          src={previews[cropIndex].url}
+          fileName={files[cropIndex]?.name || "photo.jpg"}
+          onClose={() => setCropIndex(null)}
+          onApply={(file) => {
+            setFiles((current) => current.map((item, index) => (index === cropIndex ? file : item)));
+            setCropIndex(null);
+          }}
         />
       ) : null}
     </div>

@@ -287,6 +287,16 @@ export default function ProfileView({ username }: { username?: string }) {
                       prev ? { ...prev, posts: prev.posts.filter((item) => item.id !== id) } : prev
                     )
                   }
+                  onUpdated={(updated) =>
+                    setData((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            posts: prev.posts.map((item) => (item.id === updated.id ? updated : item)),
+                          }
+                        : prev
+                    )
+                  }
                 />
               ))
             ) : (

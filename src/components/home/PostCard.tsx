@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { UserAvatar } from "../ui/UserAvatar";
 import { listFriends, type FriendUser } from "../../lib/auth";
@@ -19,6 +18,8 @@ import {
   type PostComment,
   type PostItem,
 } from "../../lib/api/posts";
+import { clampFeedAspect } from "../../lib/media";
+import MediaCarousel from "../posts/MediaCarousel";
 
 function formatPostTime(iso: string) {
   const ms = Date.now() - new Date(iso).getTime();
@@ -84,12 +85,32 @@ function asLiker(user: ReturnType<typeof useCurrentUser>): PostAuthor | null {
   };
 }
 
+function PostMediaGrid({ media }: { media: PostItem["media"] }) {
+  const [aspect, setAspect] = useState(1);
+
+  useEffect(() => {
+    const first = media[0];
+    if (!first || first.type === "video" || first.type.includes("video")) {
+      setAspect(1);
+      return;
+    }
+    const image = new window.Image();
+    image.onload = () => setAspect(clampFeedAspect(image.naturalWidth, image.naturalHeight));
+    image.src = first.url;
+  }, [media]);
+
+  if (!media.length) return null;
+
+  return <MediaCarousel items={media} aspect={aspect} />;
+}
+
 export default function PostCard({
   post: initialPost,
   onDeleted,
 }: {
   post: PostItem;
   onDeleted?: (id: string) => void;
+  onUpdated?: (post: PostItem) => void;
 }) {
   const [post, setPost] = useState(initialPost);
   const [showComments, setShowComments] = useState(false);
@@ -123,9 +144,11 @@ export default function PostCard({
           username: me.username || post.author.username,
         }
       : post.author;
-  const primaryMedia = post.media[0];
-  const extraCount = post.media.length > 1 ? post.media.length : 0;
   const likers = post.likedBy || [];
+
+  useEffect(() => {
+    setPost(initialPost);
+  }, [initialPost]);
 
   useEffect(() => {
     if (!showComments) return;
@@ -332,7 +355,9 @@ export default function PostCard({
               ) : null}
             </div>
             <div className="flex flex-wrap items-center gap-1 text-[12px] text-[#6B7280] leading-4">
-              <span>{formatPostTime(post.createdAt)} •</span>
+              <span>{formatPostTime(post.createdAt)}</span>
+              {post.edited ? <span>• Edited</span> : null}
+              <span>•</span>
               <span className="relative size-3 overflow-clip">
                 <img
                   src={privacyIcon(post.privacy)}
@@ -378,6 +403,13 @@ export default function PostCard({
           </button>
           {menuOpen && isOwner ? (
             <div className="absolute right-0 top-9 z-10 min-w-[140px] rounded-[10px] bg-white py-1 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+              <Link
+                href={`/create-post?edit=${post.id}`}
+                onClick={() => setMenuOpen(false)}
+                className="block w-full px-4 py-2 text-left text-[14px] font-medium text-[#111827] hover:bg-gray-50"
+              >
+                Edit post
+              </Link>
               <button
                 type="button"
                 disabled={working}
@@ -400,26 +432,7 @@ export default function PostCard({
         </p>
       ) : null}
 
-      {primaryMedia ? (
-        <div className="relative w-full overflow-hidden rounded-[12px]">
-          {primaryMedia.type === "video" ? (
-            <video src={primaryMedia.url} controls className="w-full max-h-[400px] bg-black" />
-          ) : (
-            <div className="relative w-full aspect-[572/312] max-h-[400px]">
-              {primaryMedia.url.startsWith("/") ? (
-                <Image src={primaryMedia.url} alt="Post media" fill sizes="740px" className="object-cover" />
-              ) : (
-                <img src={primaryMedia.url} alt="Post media" className="size-full object-cover" />
-              )}
-            </div>
-          )}
-          {extraCount > 1 ? (
-            <div className="absolute top-4 right-3 backdrop-blur-[2px] bg-black/50 text-white text-[12px] leading-4 px-2 py-1 rounded-[6px]">
-              1/{extraCount}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+      {post.media.length ? <PostMediaGrid media={post.media} /> : null}
 
       <div className="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar border-b border-[#F3F4F6] py-2">
         <div className="flex min-h-5 items-center gap-1">

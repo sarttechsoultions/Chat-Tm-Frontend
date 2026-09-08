@@ -1,5 +1,5 @@
 import AdminSectionView from "../../../../components/admin/AdminSectionView";
 
 export default function Page() {
-  return <AdminSectionView title="Pages" />;
+  return <AdminSectionView title="Pages" phase="Phase 3" />;
 }

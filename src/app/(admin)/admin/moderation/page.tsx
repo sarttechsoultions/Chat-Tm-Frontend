@@ -1,5 +1,7 @@
-import AdminSectionView from "../../../../components/admin/AdminSectionView";
+"use client";
+
+import AdminModerationQueuePage from "../../../../components/admin/AdminModerationQueuePage";
 
 export default function Page() {
-  return <AdminSectionView title="Moderation" />;
+  return <AdminModerationQueuePage />;
 }

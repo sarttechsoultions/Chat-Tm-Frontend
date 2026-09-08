@@ -5,25 +5,35 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BadgeCheck,
+  Ban,
+  BarChart3,
   Bell,
   CalendarDays,
-  CloudUpload,
-  FileText,
   Flag,
   FolderKanban,
   Images,
   KeyRound,
   LayoutDashboard,
+  LifeBuoy,
   LogOut,
   Megaphone,
   Menu,
   MessageSquare,
+  MessagesSquare,
   Monitor,
+  Phone,
   Settings,
   Shield,
   ShieldCheck,
+  Store,
   Users,
   UsersRound,
+  Video,
+  Wallet,
+  FileText,
+  Landmark,
+  LineChart,
 } from "lucide-react";
 import { displayName, getStoredUser, logoutRequest, meRequest } from "../../lib/auth";
 import { UserAvatar } from "../ui/UserAvatar";
@@ -34,40 +44,101 @@ export const ADMIN_NAV = [
     items: [{ href: "/admin", label: "Dashboard", icon: LayoutDashboard }],
   },
   {
-    heading: "Management",
+    heading: "Users",
     items: [
-      { href: "/admin/users", label: "Users", icon: Users },
+      { href: "/admin/users", label: "All Users", icon: Users },
+      { href: "/admin/users/kyc", label: "KYC / Verification", icon: BadgeCheck },
+      { href: "/admin/users/suspended", label: "Suspended Users", icon: Ban },
+    ],
+  },
+  {
+    heading: "Content",
+    items: [
       { href: "/admin/posts", label: "Posts", icon: FileText },
       { href: "/admin/stories", label: "Stories", icon: Images },
+      { href: "/admin/videos", label: "Videos", icon: Video },
+      { href: "/admin/comments", label: "Comments", icon: MessageSquare },
+    ],
+  },
+  {
+    heading: "Moderation",
+    items: [
+      { href: "/admin/reports", label: "Reports", icon: Flag },
+      { href: "/admin/moderation", label: "Moderation Queue", icon: Shield },
+      { href: "/admin/moderation/blocked", label: "Blocked Content", icon: Ban },
+    ],
+  },
+  {
+    heading: "Social",
+    items: [
       { href: "/admin/groups", label: "Groups", icon: UsersRound },
       { href: "/admin/pages", label: "Pages", icon: FolderKanban },
       { href: "/admin/events", label: "Events", icon: CalendarDays },
     ],
   },
   {
-    heading: "Content & Moderation",
+    heading: "Messaging",
     items: [
-      { href: "/admin/comments", label: "Comments", icon: MessageSquare },
-      { href: "/admin/reports", label: "Reports & Flags", icon: Flag },
-      { href: "/admin/moderation", label: "Moderation", icon: Shield },
+      { href: "/admin/messaging/messages", label: "Reported Messages", icon: MessagesSquare },
+      { href: "/admin/messaging/calls", label: "Calls", icon: Phone },
+    ],
+  },
+  {
+    heading: "Monetization",
+    items: [
+      { href: "/admin/ads", label: "Ads", icon: Megaphone },
+      { href: "/admin/ads/advertisers", label: "Advertisers", icon: Users },
+      { href: "/admin/marketplace", label: "Marketplace", icon: Store },
+    ],
+  },
+  {
+    heading: "Finance",
+    items: [
+      { href: "/admin/finance/wallets", label: "Wallets", icon: Wallet },
+      { href: "/admin/finance/transactions", label: "Transactions", icon: Landmark },
+      { href: "/admin/finance/bank", label: "Bank Verification", icon: BadgeCheck },
+    ],
+  },
+  {
+    heading: "Communication",
+    items: [
+      { href: "/admin/notifications", label: "Notifications", icon: Bell },
       { href: "/admin/announcements", label: "Announcements", icon: Megaphone },
     ],
   },
   {
-    heading: "System & Settings",
+    heading: "Analytics",
     items: [
-      { href: "/admin/roles", label: "Roles & Permissions", icon: KeyRound },
-      { href: "/admin/settings", label: "Settings", icon: Settings },
-      { href: "/admin/security", label: "Security", icon: ShieldCheck },
-      { href: "/admin/logs", label: "System Logs", icon: Monitor },
-      { href: "/admin/backup", label: "Backup", icon: CloudUpload },
+      { href: "/admin/analytics/users", label: "User Analytics", icon: LineChart },
+      { href: "/admin/analytics/content", label: "Content Analytics", icon: BarChart3 },
+      { href: "/admin/analytics/safety", label: "Safety Analytics", icon: Shield },
+      { href: "/admin/analytics/revenue", label: "Revenue Analytics", icon: Wallet },
     ],
+  },
+  {
+    heading: "System",
+    items: [
+      { href: "/admin/roles", label: "Admins & Roles", icon: KeyRound },
+      { href: "/admin/logs", label: "Audit Logs", icon: Monitor },
+      { href: "/admin/settings", label: "Platform Settings", icon: Settings },
+      { href: "/admin/security", label: "Security", icon: ShieldCheck },
+    ],
+  },
+  {
+    heading: "Support",
+    items: [{ href: "/admin/support", label: "Tickets", icon: LifeBuoy }],
   },
 ];
 
 function isActive(pathname: string, href: string) {
   if (href === "/admin") return pathname === "/admin";
-  return pathname === href || pathname.startsWith(`${href}/`);
+  if (href === "/admin/users") {
+    if (pathname === "/admin/users") return true;
+    if (!pathname.startsWith("/admin/users/")) return false;
+    const slug = pathname.slice("/admin/users/".length);
+    return slug.length > 0 && slug !== "kyc" && slug !== "suspended" && !slug.includes("/");
+  }
+  return pathname === href;
 }
 
 export function AdminSidebar() {
@@ -88,15 +159,15 @@ export function AdminSidebar() {
         </Link>
       </div>
 
-      <nav className="flex-1 px-3 pb-6 flex flex-col gap-6 overflow-y-auto no-scrollbar">
+      <nav className="flex-1 px-3 pb-6 flex flex-col gap-5 overflow-y-auto no-scrollbar">
         {ADMIN_NAV.map((group, groupIdx) => (
           <div key={group.heading ?? `group-${groupIdx}`} className="flex flex-col gap-1">
             {group.heading ? (
-              <p className="px-3 pt-2 pb-2 text-[10px] font-bold tracking-[1.5px] uppercase text-[#9AA4B2] select-none">
+              <p className="px-3 pt-1 pb-1 text-[10px] font-bold tracking-[1.5px] uppercase text-[#9AA4B2] select-none">
                 {group.heading}
               </p>
             ) : null}
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-0.5">
               {group.items.map((item) => {
                 const Icon = item.icon;
                 const active = isActive(pathname, item.href);
@@ -104,19 +175,13 @@ export function AdminSidebar() {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`group relative flex items-center gap-3.5 h-[42px] px-3.5 rounded-[12px] text-[14px] leading-5 transition-all duration-200 overflow-hidden ${
+                    className={`group relative flex items-center gap-3.5 h-[40px] px-3.5 rounded-[12px] text-[13px] leading-5 transition-all duration-200 overflow-hidden ${
                       active
                         ? "bg-gradient-to-r from-[#00696F] to-[#008A91] text-white shadow-md shadow-[#00696F]/25 font-semibold"
                         : "text-[#4B5563] font-medium hover:bg-[#F2F6F6] hover:text-[#00696F]"
                     }`}
                   >
-                    {active ? (
-                      <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    ) : null}
-                    
-                    <div className={`transition-transform duration-300 ${!active && "group-hover:scale-110"}`}>
-                      <Icon className={`size-[18px] shrink-0 ${active ? "text-white" : "text-[#7B8A99] group-hover:text-[#00696F]"}`} />
-                    </div>
+                    <Icon className={`size-[17px] shrink-0 ${active ? "text-white" : "text-[#7B8A99] group-hover:text-[#00696F]"}`} />
                     <span className="truncate z-10">{item.label}</span>
                   </Link>
                 );
@@ -157,9 +222,7 @@ export function AdminFrame({ children }: { children: React.ReactNode }) {
         <AdminSidebar />
       </div>
 
-      <div
-        className={`fixed inset-0 z-40 lg:hidden ${menuOpen ? "pointer-events-auto" : "pointer-events-none"}`}
-      >
+      <div className={`fixed inset-0 z-40 lg:hidden ${menuOpen ? "pointer-events-auto" : "pointer-events-none"}`}>
         <button
           type="button"
           aria-label="Close admin menu"
@@ -171,7 +234,7 @@ export function AdminFrame({ children }: { children: React.ReactNode }) {
             menuOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
-            {menuOpen ? <AdminSidebar /> : null}
+          {menuOpen ? <AdminSidebar /> : null}
         </div>
       </div>
 
@@ -191,10 +254,12 @@ export function AdminHeader({ onMenuClick }: { onMenuClick?: () => void }) {
   const [avatar, setAvatar] = useState(() => getStoredUser()?.avatar || "");
 
   useEffect(() => {
-    meRequest().then(latest => {
-      setName(displayName(latest));
-      setAvatar(latest.avatar || "");
-    }).catch(() => {});
+    meRequest()
+      .then((latest) => {
+        setName(displayName(latest));
+        setAvatar(latest.avatar || "");
+      })
+      .catch(() => {});
   }, []);
 
   return (
@@ -211,13 +276,7 @@ export function AdminHeader({ onMenuClick }: { onMenuClick?: () => void }) {
       ) : null}
       <label className="flex h-10 min-w-0 flex-1 max-w-[500px] items-center gap-3 rounded-full border border-[#E5E7EB] bg-[#F9FAFB] px-3 shadow-inner shadow-black/5 transition-colors focus-within:border-[#00696F] focus-within:bg-white sm:px-4">
         <span className="inline-flex size-[18px] overflow-clip shrink-0">
-          <img
-            src="/figma/icons/search.svg"
-            alt=""
-            width={18}
-            height={18}
-            className="size-full object-contain opacity-60"
-          />
+          <img src="/figma/icons/search.svg" alt="" width={18} height={18} className="size-full object-contain opacity-60" />
         </span>
         <input
           type="search"
@@ -227,14 +286,13 @@ export function AdminHeader({ onMenuClick }: { onMenuClick?: () => void }) {
       </label>
 
       <div className="ml-auto flex items-center gap-4">
-        <button
-          type="button"
-          aria-label="Notifications"
+        <Link
+          href="/admin/reports"
+          aria-label="Open reports"
           className="relative size-10 rounded-full flex items-center justify-center text-[#6B7280] hover:bg-[#F3F4F6] transition-colors"
         >
           <Bell className="size-[22px]" />
-          <span className="absolute top-2 right-2.5 size-2 rounded-full bg-[#EF4444] ring-2 ring-white" />
-        </button>
+        </Link>
         <div className="hidden h-[42px] cursor-pointer items-center gap-3 rounded-full border border-[#E5E7EB] bg-white pl-2 pr-4 shadow-sm hover:bg-gray-50 transition-colors sm:flex">
           <UserAvatar avatarUrl={avatar} name={name} size={32} />
           <div className="flex flex-col justify-center">

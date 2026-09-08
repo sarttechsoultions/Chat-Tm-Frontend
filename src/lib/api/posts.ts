@@ -42,6 +42,8 @@ export type PostItem = {
   location?: string;
   feeling?: string;
   createdAt: string;
+  updatedAt?: string;
+  edited?: boolean;
   author: PostAuthor;
   media: { id: string; url: string; type: string; sortOrder: number }[];
   mentions?: PostAuthor[];
@@ -90,6 +92,38 @@ export async function createPost(input: {
   if (input.mentionIds?.length) formData.append("mentionIds", JSON.stringify(input.mentionIds));
   (input.files || []).forEach((file) => formData.append("media", file));
   return postRequest<PostItem>("/posts", { method: "POST", body: formData });
+}
+
+export async function fetchPost(postId: string): Promise<PostItem> {
+  return postRequest<PostItem>(`/posts/${encodeURIComponent(postId)}`);
+}
+
+export async function updatePost(
+  postId: string,
+  input: {
+    body: string;
+    heading?: string;
+    privacy?: string;
+    location?: string;
+    feeling?: string;
+    mentionIds?: string[];
+    keepMediaIds?: string[];
+    files?: File[];
+  },
+): Promise<PostItem> {
+  const formData = new FormData();
+  formData.append("body", input.body);
+  if (input.heading !== undefined) formData.append("heading", input.heading);
+  formData.append("privacy", input.privacy || "PUBLIC");
+  if (input.location !== undefined) formData.append("location", input.location);
+  if (input.feeling !== undefined) formData.append("feeling", input.feeling);
+  if (input.mentionIds) formData.append("mentionIds", JSON.stringify(input.mentionIds));
+  formData.append("keepMediaIds", JSON.stringify(input.keepMediaIds || []));
+  (input.files || []).forEach((file) => formData.append("media", file));
+  return postRequest<PostItem>(`/posts/${encodeURIComponent(postId)}`, {
+    method: "PATCH",
+    body: formData,
+  });
 }
 
 export async function togglePostLike(postId: string): Promise<PostItem> {

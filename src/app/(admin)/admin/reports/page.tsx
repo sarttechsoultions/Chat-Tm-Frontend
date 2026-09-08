@@ -1,5 +1,7 @@
-import AdminSectionView from "../../../../components/admin/AdminSectionView";
+"use client";
+
+import AdminReportsPage from "../../../../components/admin/AdminReportsPage";
 
 export default function Page() {
-  return <AdminSectionView title="Reports & Flags" />;
+  return <AdminReportsPage />;
 }
