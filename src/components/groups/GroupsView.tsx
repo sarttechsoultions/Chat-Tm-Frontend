@@ -773,6 +773,9 @@ export default function GroupsView({ tab }: { tab: GroupTab }) {
               key={post.id}
               post={post}
               onDeleted={(id) => setActivity((prev) => prev.filter((item) => item.id !== id))}
+              onUpdated={(updated) =>
+                setActivity((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+              }
             />
           ))}
         </div>

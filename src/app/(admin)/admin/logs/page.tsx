@@ -1,5 +1,7 @@
-import AdminSectionView from "../../../../components/admin/AdminSectionView";
+"use client";
+
+import AdminAuditLogsPage from "../../../../components/admin/AdminAuditLogsPage";
 
 export default function Page() {
-  return <AdminSectionView title="System Logs" />;
+  return <AdminAuditLogsPage />;
 }

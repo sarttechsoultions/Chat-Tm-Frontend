@@ -232,6 +232,9 @@ export default function GroupDetailView({ groupId }: { groupId: string }) {
               key={post.id}
               post={post}
               onDeleted={(id) => setPosts((prev) => prev.filter((item) => item.id !== id))}
+              onUpdated={(updated) =>
+                setPosts((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+              }
             />
           ))
         ) : (
