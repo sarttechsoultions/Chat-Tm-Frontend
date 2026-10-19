@@ -1,327 +1,123 @@
 "use client";
-
-import React, { useState } from "react";
-import Image from "next/image";
+import { useEffect, useRef, useState } from "react";
+import StoryAudience from "./StoryAudience";
+import StoryImage, { initialImageTransform } from "./StoryImage";
+import { StoryVideo } from "./StoryTools";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import FigmaIcon from "../home/FigmaIcon";
-
-type StoryTab = "photo" | "text";
-
-type BackgroundOption = {
-  id: string;
-  style?: React.CSSProperties;
-  image?: string;
-};
-
-const BACKGROUNDS: BackgroundOption[] = [
-  { id: "blue", style: { backgroundImage: "linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)" } },
-  { id: "teal", style: { backgroundColor: "#00696F" } },
-  { id: "orange", style: { backgroundImage: "linear-gradient(135deg, #F59E0B 0%, #D97706 100%)" } },
-  { id: "red", style: { backgroundImage: "linear-gradient(135deg, #EF4444 0%, #DC2626 100%)" } },
-  { id: "green", style: { backgroundImage: "linear-gradient(135deg, #10B981 0%, #059669 100%)" } },
-  { id: "purple", style: { backgroundImage: "linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)" } },
-  { id: "gray", style: { backgroundImage: "linear-gradient(135deg, #6B7280 0%, #4B5563 100%)" } },
-  { id: "teal-2", style: { backgroundColor: "#00696F" } },
-  { id: "pink", style: { backgroundImage: "linear-gradient(to right, #F9A8D4, #D8B4FE)" } },
-  { id: "lime", style: { backgroundImage: "linear-gradient(to right, #FEF08A, #BBF7D0)" } },
-  { id: "dark", style: { backgroundImage: "linear-gradient(to right, #374151, #111827)" } },
-  { id: "pattern-1", image: "/figma/icons/story-pattern-1.svg" },
-  { id: "pattern-2", image: "/figma/icons/story-pattern-2.svg" },
-  { id: "pattern-3", image: "/figma/icons/story-pattern-3.svg" },
-];
-
-function WelcomeRow() {
-  return (
-    <div className="flex items-center gap-4 p-4 rounded-lg w-full">
-      <div className="relative size-10 rounded-full overflow-hidden shrink-0">
-        <Image
-          src="/figma/photos/story-user.png"
-          alt="User"
-          fill
-          sizes="40px"
-          className="object-cover"
-        />
-      </div>
-      <div className="flex flex-col">
-        <span className="text-[14px] font-semibold leading-5 tracking-[0.14px] text-[#0B1C30]">
-          Welcome back
-        </span>
-        <span className="text-[12px] font-semibold leading-4 tracking-[0.24px] text-[#565E74]">
-          Active Now
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function ShareActions() {
-  const router = useRouter();
-
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => router.push("/")}
-        className="w-full bg-[#00696F] hover:bg-[#00585D] text-white py-4 rounded-lg text-[14px] font-semibold leading-5 tracking-[0.14px] flex items-center justify-center gap-2 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] transition-colors"
-      >
-        <FigmaIcon src="/figma/icons/share-play.svg" alt="" width={11} height={9} />
-        Share to Story
-      </button>
-      <button
-        type="button"
-        onClick={() => router.back()}
-        className="w-full border border-[#BBC9CA] rounded-lg py-[17px] text-[14px] font-semibold leading-5 tracking-[0.14px] text-[#565E74] hover:bg-gray-50 transition-colors"
-      >
-        Discard
-      </button>
-    </>
-  );
-}
-
+import { createStory, type StoryTextLayer } from "../../lib/api/stories";
+const colors = ["#00696F", "#284b8b", "#923b76", "#b35232", "#243746"];
 export default function CreateStoryUI() {
-  const [activeTab, setActiveTab] = useState<StoryTab>("photo");
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [overlayText, setOverlayText] = useState("Morning vibes! ☕️");
-  const [showOverlay, setShowOverlay] = useState(true);
-  const [selectedBgId, setSelectedBgId] = useState("salmon");
-  const [canvasStyle, setCanvasStyle] = useState<React.CSSProperties>({
-    backgroundColor: "#D65454",
-  });
-
-  const isPhotoEditor = activeTab === "photo" && Boolean(previewUrl);
-  const isTextEditor = activeTab === "text";
-  const showTools = isPhotoEditor || isTextEditor;
-
-  const applyFile = (file?: File) => {
-    if (previewUrl?.startsWith("blob:")) URL.revokeObjectURL(previewUrl);
-    if (file) {
-      setPreviewUrl(URL.createObjectURL(file));
-    } else {
-      setPreviewUrl("/figma/photos/story-preview.png");
-    }
-    setActiveTab("photo");
-  };
-
-  const selectBackground = (option: BackgroundOption) => {
-    setSelectedBgId(option.id);
-    if (option.image) {
-      setCanvasStyle({
-        backgroundImage: `url(${option.image})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-      });
-      return;
-    }
-    setCanvasStyle(option.style ?? { backgroundColor: "#D65454" });
-  };
-
-  return (
-    <div className="flex h-full w-full items-start gap-6">
-      <aside className="hidden lg:flex w-[290px] h-full shrink-0 overflow-y-auto no-scrollbar pb-6">
-        <div className="w-full h-fit min-h-full p-2.5 bg-white rounded-[10px] shadow-[0px_4px_2px_rgba(0,0,0,0.25)]">
-          <div className="w-full bg-white rounded-2xl p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] flex flex-col gap-5">
-            <WelcomeRow />
-
-            {isPhotoEditor ? (
-              <div className="flex flex-col gap-1">
-                <button
-                  type="button"
-                  onClick={() => setShowOverlay(true)}
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left"
-                >
-                  <span className="size-7 rounded-full bg-[rgba(0,105,111,0.1)] flex items-center justify-center shrink-0">
-                    <FigmaIcon src="/figma/icons/add-text.svg" alt="" width={10} height={12} />
-                  </span>
-                  <span className="text-[16px] font-medium leading-6 text-[#00696F]">Add text</span>
-                </button>
-                <button type="button" className="flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left">
-                  <span className="relative size-7 overflow-clip shrink-0">
-                    <img src="/figma/icons/add-music.svg" alt="" width={28} height={28} className="size-full object-contain" />
-                  </span>
-                  <span className="text-[16px] font-medium leading-6 text-[#4B5563]">Add music</span>
-                </button>
-                <button type="button" className="flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left">
-                  <span className="relative size-7 overflow-clip shrink-0">
-                    <img src="/figma/icons/add-time.svg" alt="" width={28} height={28} className="size-full object-contain" />
-                  </span>
-                  <span className="text-[16px] font-medium leading-6 text-[#00696F]">Add time</span>
-                </button>
-              </div>
-            ) : null}
-
-            {isTextEditor ? (
-              <div className="flex flex-col gap-1">
-                <button
-                  type="button"
-                  className="h-12 w-full border border-[#D1D5DB] rounded-lg px-[13px] flex items-center justify-between"
-                >
-                  <span className="flex items-center gap-2">
-                    <FigmaIcon src="/figma/icons/font-clean.svg" alt="" width={12} height={12} />
-                    <span className="text-[15px] leading-[22.5px] text-[#111827]">Clean</span>
-                  </span>
-                  <FigmaIcon src="/figma/icons/font-chevron.svg" alt="" width={12} height={7} />
-                </button>
-
-                <div className="border border-[#D1D5DB] rounded-lg p-4 flex flex-col gap-1">
-                  <span className="text-[14px] font-medium leading-5 text-[#6B7280]">Backgrounds</span>
-                  <span className="text-[13px] leading-[19.5px] text-[#9CA3AF]">Gradient</span>
-                  <div className="flex flex-wrap gap-x-3 gap-y-3.5 pt-3">
-                    {BACKGROUNDS.map((option) => {
-                      const selected = selectedBgId === option.id;
-                      return (
-                        <button
-                          key={option.id}
-                          type="button"
-                          aria-label={`Background ${option.id}`}
-                          onClick={() => selectBackground(option)}
-                          className={`relative size-7 shrink-0 rounded-full overflow-hidden ${
-                            selected ? "ring-2 ring-[#3B82F6] ring-offset-2 ring-offset-white" : ""
-                          }`}
-                          style={option.image ? undefined : option.style}
-                        >
-                          {option.image ? (
-                            <img src={option.image} alt="" width={28} height={28} className="size-full object-cover" />
-                          ) : null}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="flex justify-center pt-2">
-                    <FigmaIcon src="/figma/icons/backgrounds-more.svg" alt="" width={8} height={5} />
-                  </div>
-                </div>
-
-                <button type="button" className="flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left">
-                  <span className="relative size-7 overflow-clip shrink-0">
-                    <img src="/figma/icons/add-music.svg" alt="" width={28} height={28} className="size-full object-contain" />
-                  </span>
-                  <span className="text-[16px] font-medium leading-6 text-[#4B5563]">Add music</span>
-                </button>
-              </div>
-            ) : null}
-
-            {showTools ? <ShareActions /> : null}
-          </div>
-        </div>
-      </aside>
-
-      <div className="flex-1 h-full min-w-0">
-        {!showTools ? (
-          <div className="flex items-start gap-3 pt-2.5">
-            <Link
-              href="/"
-              aria-label="Go back"
-              className="size-10 rounded-full flex items-center justify-center shrink-0 hover:bg-[#EFF4FF] transition-colors"
-            >
-              <FigmaIcon src="/figma/icons/back-arrow.svg" alt="" width={16} height={16} />
-            </Link>
-
-            <div className="w-full max-w-[742px] flex flex-col">
-              <h1 className="text-[32px] font-bold leading-10 tracking-[-0.32px] text-[#0B1C30] pb-10">
-                Create Story
-              </h1>
-
-              <div className="bg-[#D3E4FE] p-1 rounded-lg flex items-center mb-10">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("photo")}
-                  className="flex-1 py-2 rounded-md bg-white text-[#00696F] text-[14px] font-semibold leading-5 tracking-[0.14px] shadow-[0px_1px_1px_rgba(0,0,0,0.05)]"
-                >
-                  Photo/Video
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("text")}
-                  className="flex-1 py-2 rounded-md text-[#565E74] text-[14px] font-semibold leading-5 tracking-[0.14px]"
-                >
-                  Text
-                </button>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => applyFile()}
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  applyFile(event.dataTransfer.files[0]);
-                }}
-                className="w-full max-w-[695px] border border-dashed border-[#BBC9CA] rounded-xl py-6 px-8 flex flex-col items-center justify-center gap-2.5"
-              >
-                <span className="relative size-10 overflow-clip">
-                  <img
-                    src="/figma/icons/story-upload.svg"
-                    alt=""
-                    width={40}
-                    height={40}
-                    className="size-full object-contain"
-                  />
-                </span>
-                <span className="text-[14px] font-semibold leading-5 tracking-[0.14px] text-[#0B1C30]">
-                  Click to upload media
-                </span>
-                <span className="text-[12px] font-semibold leading-4 tracking-[0.24px] text-[#565E74]">
-                  or drag and drop here
-                </span>
-              </button>
-            </div>
-          </div>
-        ) : null}
-
-        {isPhotoEditor ? (
-          <div className="flex items-center justify-center min-h-full pt-3">
-            <div className="relative w-full max-w-[407px] h-[637px] overflow-hidden bg-[#D3E4FE]">
-              <Image
-                src={previewUrl!}
-                alt="Story preview"
-                fill
-                sizes="407px"
-                className="object-cover"
-                unoptimized={previewUrl!.startsWith("blob:")}
-                priority
-              />
-              {showOverlay ? (
-                <div className="absolute inset-0 flex items-center justify-center p-4">
-                  <div className="-rotate-2">
-                    <div className="backdrop-blur-[2px] bg-black/20 border border-white/20 rounded-xl p-[13px]">
-                      <input
-                        value={overlayText}
-                        onChange={(event) => setOverlayText(event.target.value)}
-                        className="bg-transparent text-white text-[24px] font-bold leading-8 text-center drop-shadow-[0px_4px_1.5px_rgba(0,0,0,0.1)] focus:outline-none w-[224px]"
-                      />
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-              <button
-                type="button"
-                className="absolute top-4 right-4 backdrop-blur-[6px] bg-white/20 border border-white/30 rounded-full px-[13px] py-[5px] flex items-center gap-1"
-              >
-                <FigmaIcon src="/figma/icons/add-music-pill.svg" alt="" width={7} height={11} />
-                <span className="text-[12px] font-semibold leading-4 tracking-[0.24px] text-white">
-                  Add Music
-                </span>
-              </button>
-            </div>
-          </div>
-        ) : null}
-
-        {isTextEditor ? (
-          <div className="flex items-center justify-center min-h-full pt-12">
-            <div
-              className="relative w-full max-w-[407px] h-[637px] rounded-xl overflow-hidden flex items-center justify-center"
-              style={canvasStyle}
-            >
-              <textarea
-                className="w-[80%] bg-transparent text-white text-center text-[24px] font-bold leading-8 placeholder-white/70 resize-none focus:outline-none"
-                placeholder="Start typing..."
-                rows={4}
-              />
-            </div>
-          </div>
-        ) : null}
+  const [audience, setAudience] = useState("FRIENDS");
+  const [imageTransform, setImageTransform] = useState(initialImageTransform);
+  const [imageOpen, setImageOpen] = useState(false);
+  const [layers, setLayers] = useState<StoryTextLayer[]>([]);
+  const [selectedId, setSelectedId] = useState("initial");
+  const [textOpen, setTextOpen] = useState(false);
+  const [fontFamily, setFontFamily] = useState<"inherit" | "serif" | "monospace" | "cursive">("inherit");
+  const [bold, setBold] = useState(true);
+  const [italic, setItalic] = useState(false);
+  const [align, setAlign] = useState<"left" | "center" | "right">("center");
+  const [position, setPosition] = useState({ x: 50, y: 50 });
+  const [timePosition, setTimePosition] = useState({ x: 50, y: 20 });
+  const timeDrag = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
+  const [time, setTime] = useState("");
+  const [music, setMusic] = useState<File | null>(null);
+  const [musicUrl, setMusicUrl] = useState("");
+  const [size, setSize] = useState(24);
+  const [ink, setInk] = useState("#ffffff");
+  const musicInput = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (!music) { setMusicUrl(""); return; } const url = URL.createObjectURL(music); setMusicUrl(url); return () => URL.revokeObjectURL(url); }, [music]);
+  const router = useRouter(); const input = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null); const [url, setUrl] = useState(""); const [text, setText] = useState(""); const [mode, setMode] = useState("photo"); const [color, setColor] = useState(colors[0]); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
+  useEffect(() => { if (!file) { setUrl(""); return; } const value = URL.createObjectURL(file); setUrl(value); return () => URL.revokeObjectURL(value); }, [file]);
+  function choose(value?: File) { if (!value) return; if (!["image/jpeg", "image/png", "image/webp", "video/mp4"].includes(value.type) || value.size > 50 * 1024 * 1024) { setError("Choose JPG, PNG, WEBP or MP4 up to 50MB."); return; } setError(""); setImageTransform(initialImageTransform); setFile(value); }
+  function currentLayer(): StoryTextLayer { return { id: selectedId, text, position, fontFamily, bold, italic, align, size, color: ink }; }
+  function allLayers() { return [...layers.filter(layer => layer.id !== selectedId), currentLayer()].filter(layer => layer.text.trim()); }
+  function selectLayer(layer: StoryTextLayer) {
+    setImageOpen(false);
+    setLayers(allLayers()); setSelectedId(layer.id); setText(layer.text); setPosition(layer.position); setFontFamily(layer.fontFamily); setBold(layer.bold); setItalic(layer.italic); setAlign(layer.align); setSize(layer.size); setInk(layer.color); setTextOpen(true);
+  }
+  function addText() {
+    setImageOpen(false);
+    if (allLayers().length >= 10) { setError("You can add up to 10 text blocks."); return; }
+    setLayers(allLayers()); setSelectedId(crypto.randomUUID()); setText(""); setPosition({ x: 50, y: Math.min(80, 40 + allLayers().length * 8) }); setTextOpen(true);
+  }
+  async function share() {
+    if (busy) return; setBusy(true); setError("");
+    try {
+      let media = file;
+      if (mode === "text") {
+        if (!allLayers().length) throw new Error("Write something for your story.");
+        const canvas = document.createElement("canvas"); canvas.width = 1080; canvas.height = 1920; const ctx = canvas.getContext("2d")!; ctx.fillStyle = color; ctx.fillRect(0, 0, 1080, 1920);         const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, "image/png")); if (!blob) throw new Error("Unable to prepare story"); media = new File([blob], "story.png", { type: "image/png" });
+      }
+      if (!media) throw new Error("Choose a photo or video."); await createStory(media, "", { imageTransform: mode === "photo" && file?.type.startsWith("image/") ? imageTransform : undefined, texts: allLayers(), fontFamily, bold, italic, align, textPosition: position, timePosition, time, textSize: size, textColor: ink }, music, audience); router.push("/"); router.refresh();
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to share story"); } finally { setBusy(false); }
+  }
+  return <div className="fixed inset-0 z-[60] flex flex-col bg-black md:static md:z-auto md:mx-auto md:grid md:w-full md:max-w-[1360px] md:grid-cols-[260px_1fr] md:gap-6 md:bg-transparent md:p-3 md:pb-24">
+    <section className="hidden h-fit rounded-2xl bg-white p-5 md:block"><Link href="/" className="text-sm text-[#00696F]">← Back to home</Link><h1 className="mt-4 text-2xl font-bold">Create story</h1><p className="mt-2 text-sm text-gray-500">Share a moment. Visible for 24 hours.</p>
+      <div className="mt-4"><StoryAudience value={audience} onChange={setAudience}/></div>
+      <div className="my-5 flex gap-2">{["photo", "text"].map(item => <button key={item} onClick={() => { setMode(item); if (item === "text") setTextOpen(true); }} className={`rounded-lg px-4 py-2 text-sm ${mode === item ? "bg-[#00696F] text-white" : "bg-gray-100"}`}>{item === "photo" ? "Photo / video" : "Text"}</button>)}</div>
+      {mode === "photo" ? <><input ref={input} type="file" accept="image/jpeg,image/png,image/webp,video/mp4" className="hidden" onChange={e => choose(e.target.files?.[0])} /><button onClick={() => input.current?.click()} className="w-full rounded-xl border border-dashed border-[#00696F] p-4 text-sm text-[#00696F]">{file ? "Change media" : "Choose photo or video"}</button><p className="mt-2 text-xs text-gray-500">Up to 50MB</p></> : <div className="flex gap-3">{colors.map(value => <button key={value} aria-label={`Background ${value}`} onClick={() => setColor(value)} style={{ background: value }} className={`size-8 rounded-full ${color === value ? "ring-2 ring-[#00696F] ring-offset-2" : ""}`} />)}</div>}
+      {mode === "photo" && file?.type.startsWith("image/") && <button onClick={()=>{setImageOpen(!imageOpen);setTextOpen(false);}} className="mt-4 w-full rounded-xl bg-[#edf5f5] p-3 text-left text-sm font-semibold text-[#00696F]">⤢ Edit image</button>}
+      <div className="mt-5 space-y-2 border-t border-[#e5eeee] pt-4">
+<button aria-expanded={textOpen} onClick={()=>{setImageOpen(false);setTextOpen(!textOpen);}} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold text-[#0B1C30] hover:bg-[#edf5f5]"><span className="flex size-9 items-center justify-center rounded-full bg-[#e5f0f0] text-lg text-[#00696F]">Aa</span>{text ? "Edit selected text" : "Add text"}<span className="ml-auto text-gray-400">›</span></button>
+<button onClick={addText} className="w-full rounded-xl border border-[#cce4e4] p-3 text-left text-sm font-semibold text-[#00696F]">＋ Add another text</button>
+{layers.filter(layer=>layer.id!==selectedId).map(layer=><button key={layer.id} onClick={()=>selectLayer(layer)} className="block w-full truncate rounded-lg bg-gray-50 px-3 py-2 text-left text-xs">Aa · {layer.text}</button>)}
+      <button onClick={()=>setTime(time ? "" : new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}))} className="w-full rounded-xl bg-[#edf5f5] p-3 text-left text-sm text-[#00696F]">◷ {time ? "Remove time" : "Add time"}</button>
+      <input ref={musicInput} type="file" accept="audio/mpeg,audio/wav,audio/mp4,audio/ogg" className="hidden" onChange={e=>{const f=e.target.files?.[0];if(f && f.type.startsWith("audio/") && f.size<=10485760)setMusic(f);else if(f)setError("Choose audio up to 10MB.");}} />
+      <button onClick={()=>musicInput.current?.click()} className="w-full rounded-xl bg-[#edf5f5] p-3 text-left text-sm text-[#00696F]">♫ {music?.name || "Add music"}</button>
+      {musicUrl && <><audio src={musicUrl} controls className="w-full"/><button onClick={()=>setMusic(null)} className="text-xs text-red-600">Remove music</button></>}
       </div>
+      {error && <p role="alert" className="my-3 text-sm text-red-600">{error}</p>}
+      <button disabled={busy || (mode === "text" ? !allLayers().length : !file)} onClick={() => void share()} className="mt-4 w-full rounded-xl bg-[#00696F] py-3 font-semibold text-white disabled:opacity-40">{busy ? "Sharing…" : "Share to story"}</button>
+    </section>
+    <section className="relative min-h-0 flex-1 overflow-hidden bg-black md:overflow-visible md:rounded-2xl md:bg-white md:p-3"><h2 className="mb-3 hidden text-sm font-semibold md:block">Preview</h2><div className={textOpen || imageOpen ? "grid h-full items-start gap-4 md:h-auto lg:grid-cols-[minmax(0,1fr)_264px]" : "grid h-full md:h-auto"}>{imageOpen && mode === "photo" && file?.type.startsWith("image/") && <div className="fixed inset-x-0 bottom-0 z-[80] max-h-[65dvh] overflow-y-auto rounded-t-2xl bg-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-lg md:static md:mb-4 md:rounded-2xl md:border md:border-[#dce8e8] lg:col-start-2 lg:row-start-1 lg:w-[264px]">
+<h3 className="mb-3 text-sm font-semibold">Edit image</h3><p className="mb-4 text-xs text-gray-500">Drag to move. Pinch with two fingers to zoom and rotate.</p>
+<label className="mb-4 block text-sm">Zoom · {Math.round(imageTransform.zoom*100)}%<input aria-label="Image zoom" className="mt-2 w-full accent-[#00696F]" type="range" min="0.25" max="5" step="0.01" value={imageTransform.zoom} onChange={e=>setImageTransform(v=>({...v,zoom:Number(e.target.value)}))}/></label>
+<label className="mb-4 block text-sm">Rotate · {Math.round(imageTransform.rotation)}°<input aria-label="Image rotation" className="mt-2 w-full accent-[#00696F]" type="range" min="-180" max="180" value={imageTransform.rotation} onChange={e=>setImageTransform(v=>({...v,rotation:Number(e.target.value)}))}/></label>
+<div className="grid grid-cols-2 gap-2">{(["flipX","flipY"] as const).map(key=><button key={key} aria-pressed={imageTransform[key]} onClick={()=>setImageTransform(v=>({...v,[key]:!v[key]}))} className="rounded-lg border border-[#dce8e8] p-2 text-xs">{key==="flipX"?"Flip horizontal":"Flip vertical"}</button>)}<button onClick={()=>setImageTransform(v=>({...v,rotation:((v.rotation+270)%360)-180}))} className="rounded-lg border p-2 text-xs">Rotate 90°</button><button onClick={()=>setImageTransform(initialImageTransform)} className="rounded-lg border p-2 text-xs">Reset</button></div>
+<button onClick={()=>setImageOpen(false)} className="mt-4 w-full rounded-lg bg-[#00696F] py-2 text-sm font-semibold text-white">Done</button></div>}{textOpen && <div role="region" aria-label="Text editor" className="fixed inset-x-0 bottom-0 z-[80] max-h-[70dvh] overflow-y-auto rounded-t-2xl border border-[#dce8e8] bg-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-lg md:static md:mb-4 md:max-h-none md:rounded-2xl md:pb-4 lg:col-start-2 lg:row-start-1 lg:mb-0 lg:w-[264px]">
+<div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-semibold text-[#0B1C30]">Edit text</h3><button aria-label="Close text editor" onClick={()=>setTextOpen(false)} className="rounded-full px-2 py-1 text-gray-500 hover:bg-gray-100">✕</button></div>
+      <textarea aria-label="Story text" maxLength={mode === "text" ? 250 : 500} value={text} onChange={e => setText(e.target.value)} placeholder={mode === "text" ? "Write your story…" : "Add a caption…"} autoFocus className="mt-0 min-h-20 w-full rounded-xl bg-gray-50 p-3 text-sm" />
+
+<div className="mt-3 space-y-3">      
+      <label className="block text-sm font-medium text-[#0B1C30]">Font
+        <select value={fontFamily} onChange={e=>setFontFamily(e.target.value as typeof fontFamily)} className="mt-2 w-full rounded-xl border border-[#dce8e8] bg-white px-3 py-2.5 text-sm outline-[#00696F]">
+          <option value="inherit">Clean · App font</option><option value="serif">Classic · Serif</option><option value="monospace">Typewriter · Mono</option><option value="cursive">Handwritten · Cursive</option>
+        </select>
+      </label>
+      <div className="flex gap-2" aria-label="Text style">
+        <button aria-label="Bold" aria-pressed={bold} onClick={()=>setBold(!bold)} className={"size-10 rounded-lg border font-bold " + (bold ? "border-[#00696F] bg-[#e0f0f0] text-[#00696F]" : "border-gray-200")}>B</button>
+        <button aria-label="Italic" aria-pressed={italic} onClick={()=>setItalic(!italic)} className={"size-10 rounded-lg border italic " + (italic ? "border-[#00696F] bg-[#e0f0f0] text-[#00696F]" : "border-gray-200")}>I</button>
+        {(["left","center","right"] as const).map(value=><button key={value} aria-label={value + " align"} aria-pressed={align===value} onClick={()=>setAlign(value)} className={"flex-1 rounded-lg border text-xs " + (align===value ? "border-[#00696F] bg-[#e0f0f0] text-[#00696F]" : "border-gray-200")}>{value}</button>)}
+      </div>
+      <label className="flex items-center gap-2 text-sm">Text size<input type="range" min="14" max="40" value={size} onChange={e=>setSize(Number(e.target.value))} className="w-24 accent-[#00696F]" /></label>
+      <label className="flex items-center gap-2 text-sm">Text color <span className="text-xs text-gray-500">{ink.toUpperCase()}</span><input aria-label="Text color" className="size-9 cursor-pointer rounded border border-gray-200" type="color" value={ink} onChange={e=>setInk(e.target.value)} /></label>
+
+<div className="flex flex-wrap gap-2">{["#ffffff","#111827","#00696f","#ef4444","#f59e0b","#3b82f6","#ec4899"].map(value=><button key={value} aria-label={"Text color " + value} onClick={()=>setInk(value)} style={{background:value}} className={"size-6 rounded-full border border-gray-200 " + (ink===value ? "ring-2 ring-[#00696F] ring-offset-2" : "")} />)}</div>
+<button onClick={()=>setTextOpen(false)} className="w-full rounded-lg bg-[#00696F] py-2 text-sm font-semibold text-white">Done</button>
+</div></div>}<div className="relative col-start-1 row-start-1 mx-auto h-full w-full overflow-hidden rounded-b-3xl bg-[#101820] text-white md:aspect-[9/16] md:h-auto md:max-w-[min(380px,calc((100dvh-180px)*0.5625))] md:rounded-xl" style={mode === "text" ? {background:color} : {}}>
+    {mode !== "text" && (url ? file?.type.startsWith("video/") ? <StoryVideo src={url} muted={!!music}/> : <StoryImage src={url} value={imageTransform} onChange={setImageTransform}/> : <p className="flex size-full items-center justify-center text-sm text-white/60">Choose media to preview</p>)}
+    {layers.filter(layer=>layer.id!==selectedId).map(layer=><button key={layer.id} onClick={()=>selectLayer(layer)} style={{left:layer.position.x+"%",top:layer.position.y+"%",transform:"translate(-50%,-50%)",fontFamily:layer.fontFamily,fontSize:layer.size,color:layer.color,fontWeight:layer.bold?700:400,fontStyle:layer.italic?"italic":"normal",textAlign:layer.align}} className="absolute max-w-[90%] whitespace-pre-wrap break-words p-2 drop-shadow-md">{layer.text}</button>)}
+    {!!text && <div role="button" tabIndex={0} aria-label="Move text using drag or arrow keys" onDoubleClick={()=>setTextOpen(true)} onKeyDown={e=>{const dx=e.key==="ArrowLeft"?-1:e.key==="ArrowRight"?1:0;const dy=e.key==="ArrowUp"?-1:e.key==="ArrowDown"?1:0;if(dx||dy){e.preventDefault();setPosition(p=>({x:Math.max(5,Math.min(95,p.x+dx)),y:Math.max(5,Math.min(95,p.y+dy))}));}}} onPointerDown={e=>e.currentTarget.setPointerCapture(e.pointerId)} onPointerMove={e=>{if(!e.currentTarget.hasPointerCapture(e.pointerId))return;const b=e.currentTarget.parentElement!.getBoundingClientRect();setPosition({x:Math.max(5,Math.min(95,(e.clientX-b.left)/b.width*100)),y:Math.max(5,Math.min(95,(e.clientY-b.top)/b.height*100))});}} style={{left:position.x+"%",top:position.y+"%",transform:"translate(-50%,-50%)",fontFamily,fontWeight:bold ? 700 : 400,fontStyle:italic ? "italic" : "normal",textAlign:align,fontSize:size,color:ink,touchAction:"none"}} className="absolute max-w-[90%] cursor-move select-none whitespace-pre-wrap break-words rounded-lg border border-dashed border-white/40 p-2 text-center font-bold drop-shadow-md">{text}</div>}
+    {!!time && <span role="button" tabIndex={0} aria-label="Move time sticker using drag or arrow keys" onKeyDown={e=>{ const dx=e.key==="ArrowLeft"?-1:e.key==="ArrowRight"?1:0; const dy=e.key==="ArrowUp"?-1:e.key==="ArrowDown"?1:0; if(dx||dy){e.preventDefault();setTimePosition(p=>({x:Math.max(5,Math.min(95,p.x+dx)),y:Math.max(5,Math.min(95,p.y+dy))}));} }} onPointerDown={e=>{e.stopPropagation();e.currentTarget.setPointerCapture(e.pointerId);timeDrag.current={x:e.clientX,y:e.clientY,px:timePosition.x,py:timePosition.y};}} onPointerMove={e=>{if(!timeDrag.current)return; const box=e.currentTarget.parentElement!.getBoundingClientRect(); const sticker=e.currentTarget.getBoundingClientRect();const marginX=Math.max(5,Math.min(49,sticker.width/box.width*50));const marginY=Math.max(5,Math.min(49,sticker.height/box.height*50));setTimePosition({x:Math.max(marginX,Math.min(100-marginX,timeDrag.current.px+(e.clientX-timeDrag.current.x)/box.width*100)),y:Math.max(marginY,Math.min(100-marginY,timeDrag.current.py+(e.clientY-timeDrag.current.y)/box.height*100))});}} onPointerUp={()=>{timeDrag.current=null;}} onPointerCancel={()=>{timeDrag.current=null;}} onLostPointerCapture={()=>{timeDrag.current=null;}} style={{left:timePosition.x+"%",top:timePosition.y+"%",transform:"translate(-50%,-50%)",touchAction:"none"}} className="absolute z-10 cursor-move select-none whitespace-nowrap rounded-xl bg-white/90 px-4 py-2 text-lg font-semibold text-[#0B1C30] focus:outline-2 focus:outline-[#00696F]">{time}</span>}
+    </div></div></section>
+    <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-3 bg-gradient-to-b from-black/60 to-transparent px-4 pb-8 pt-[calc(1rem+env(safe-area-inset-top))] text-white md:hidden">
+      <Link href="/" aria-label="Close story editor" className="pointer-events-auto flex size-10 items-center justify-center rounded-full bg-black/30 text-xl">←</Link>
+      <button onClick={()=>musicInput.current?.click()} className="pointer-events-auto max-w-[65%] truncate rounded-full bg-black/40 px-5 py-2 text-sm">♫ {music?.name || "Add music"}</button>
+      <button onClick={()=>{setMode(mode==="text"?"photo":"text");}} className="pointer-events-auto rounded-full bg-black/30 px-3 py-2 text-xs">{mode==="text"?"Photo":"Text"}</button>
     </div>
-  );
+    <div className="absolute inset-x-0 bottom-[105px] z-20 flex justify-center gap-4 bg-gradient-to-t from-black/65 to-transparent px-4 pb-4 pt-8 text-white md:hidden">
+      <button onClick={()=>musicInput.current?.click()} className="flex flex-col items-center gap-1 text-xs"><span className="flex size-12 items-center justify-center rounded-full bg-white/20 text-2xl">♫</span>Music</button>
+      <button onClick={addText} className="flex flex-col items-center gap-1 text-xs"><span className="flex size-12 items-center justify-center rounded-full bg-white/20 text-xl">Aa</span>Text</button>
+      <button onClick={()=>setTime(time?"":new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}))} className="flex flex-col items-center gap-1 text-xs"><span className="flex size-12 items-center justify-center rounded-full bg-white/20 text-2xl">◷</span>Time</button>
+      <button onClick={()=>{setMode("photo");input.current?.click();}} className="flex flex-col items-center gap-1 text-xs"><span className="flex size-12 items-center justify-center rounded-full bg-white/20 text-xl">＋</span>Media</button>
+      {mode==="photo" && file?.type.startsWith("image/") && <button onClick={()=>{setImageOpen(true);setTextOpen(false);}} className="flex flex-col items-center gap-1 text-xs"><span className="flex size-12 items-center justify-center rounded-full bg-white/20 text-xl">⤢</span>Adjust</button>}
+      {mode==="text" && <button onClick={()=>setColor(colors[(colors.indexOf(color)+1)%colors.length])} className="flex flex-col items-center gap-1 text-xs"><span className="flex size-12 items-center justify-center rounded-full border-2 border-white/40" style={{background:color}}>●</span>Background</button>}
+    </div>
+    <footer className="z-20 flex h-[105px] shrink-0 items-center justify-between gap-4 bg-black px-5 pb-[env(safe-area-inset-bottom)] text-white md:hidden"><StoryAudience value={audience} onChange={setAudience}/><button disabled={busy||(mode==="text"?!allLayers().length:!file)} onClick={()=>void share()} className="rounded-2xl bg-[#00696F] px-8 py-3 text-base font-semibold disabled:opacity-40">{busy?"Sharing…":"Share"}</button></footer>
+    {error && <p role="alert" className="absolute inset-x-3 top-20 z-[90] rounded-xl bg-white p-3 text-sm text-red-600 md:hidden">{error}</p>}
+  </div>;
 }
+

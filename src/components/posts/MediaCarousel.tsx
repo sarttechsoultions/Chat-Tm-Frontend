@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import VideoPlayer from "./VideoPlayer";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export type CarouselMedia = {
@@ -23,9 +24,9 @@ function Slide({
   return (
     <div className="relative w-full overflow-hidden bg-black" style={{ aspectRatio: String(aspect) }}>
       {isVideo(item.type) ? (
-        <video src={item.url} controls className="absolute inset-0 size-full object-cover bg-black" />
+        <div className="absolute inset-0"><VideoPlayer src={item.url} /></div>
       ) : (
-        <img src={item.url} alt="" className="absolute inset-0 size-full object-cover" />
+        <img src={item.url} alt="" className="absolute inset-0 size-full object-contain" />
       )}
     </div>
   );

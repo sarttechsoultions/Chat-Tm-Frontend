@@ -64,6 +64,7 @@ const ATTACHMENTS = [
 ] as const;
 
 type Draft = {
+  heading?: string;
   caption: string;
   privacy: (typeof PRIVACY_OPTIONS)[number]["id"];
   location: string;
@@ -114,12 +115,12 @@ export default function CreatePostPage() {
     | { kind: "existing"; id: string; src: string }
     | null
   >(null);
-  const [pendingCropIndex, setPendingCropIndex] = useState<number | null>(null);
 
   useEffect(() => {
     setUser(getStoredUser());
     const draft = editId ? null : readDraft();
     if (draft) {
+      setHeading(draft.heading || "");
       setCaption(draft.caption || "");
       setPrivacy(draft.privacy || "PUBLIC");
       setLocation(draft.location || "");
@@ -179,14 +180,6 @@ export default function CreatePostPage() {
     };
   }, [files]);
 
-  useEffect(() => {
-    if (pendingCropIndex == null) return;
-    const src = previewUrls[pendingCropIndex];
-    const file = files[pendingCropIndex];
-    if (!src || !file || file.type.startsWith("video/")) return;
-    setCropTarget({ kind: "file", index: pendingCropIndex, src, name: file.name });
-    setPendingCropIndex(null);
-  }, [pendingCropIndex, previewUrls, files]);
 
   const mentionQuery = useMemo(() => {
     const match = caption.slice(0, textareaRef.current?.selectionStart || caption.length).match(/@([A-Za-z0-9_.]*)$/);
@@ -224,12 +217,8 @@ export default function CreatePostPage() {
     try {
       setError("");
       const prepared = await preparePostFiles(allowed.slice(0, remaining));
-      const startIndex = files.length;
       setFiles((current) => [...current, ...prepared].slice(0, 6 - existingMedia.length));
-      const firstImage = prepared.findIndex(
-        (file) => file.type.startsWith("image/") && file.type !== "image/gif",
-      );
-      if (firstImage >= 0) setPendingCropIndex(startIndex + firstImage);
+
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to add media.");
     }
@@ -269,6 +258,7 @@ export default function CreatePostPage() {
     localStorage.setItem(
       DRAFT_KEY,
       JSON.stringify({
+        heading,
         caption,
         privacy,
         location,
@@ -310,7 +300,7 @@ export default function CreatePostPage() {
   }
 
   return (
-    <div className="flex items-start justify-center gap-2 px-0 pb-12 pt-2 sm:gap-3 sm:px-2">
+    <div className="flex flex-col items-stretch justify-center gap-2 px-0 pb-12 pt-2 sm:flex-row sm:items-start sm:gap-3 sm:px-2">
       <Link
         href="/"
         aria-label="Go back"
@@ -327,7 +317,7 @@ export default function CreatePostPage() {
         </span>
       </Link>
 
-      <div className="w-full max-w-[768px] flex flex-col gap-6">
+      <div className="w-full min-w-0 max-w-[680px] flex flex-col gap-4">
         <header>
           <h1
             className={`${sourceSerif.className} text-[24px] font-bold leading-8 tracking-[-0.32px] text-[#0B1C30] sm:text-[32px] sm:leading-[40px]`}
@@ -340,7 +330,7 @@ export default function CreatePostPage() {
         </header>
 
         <section className="w-full bg-white rounded-xl border border-[rgba(211,228,254,0.3)] shadow-[0px_10px_20px_0px_rgba(86,94,116,0.08)] overflow-hidden">
-          <div className="flex flex-col gap-6 p-6">
+          <div className="flex flex-col gap-4 p-4 sm:gap-6 sm:p-6">
             <div className="flex items-center gap-3">
               <UserAvatar
                 avatarUrl={liveUser?.avatar || user?.avatar}
@@ -507,7 +497,7 @@ export default function CreatePostPage() {
                           className="size-full"
                           aria-label="Crop photo"
                         >
-                          <img src={item.url} alt="" className="size-full object-cover" />
+                          <img src={item.url} alt="" className="size-full object-contain" />
                         </button>
                       )}
                       {item.type !== "video" ? (
@@ -543,7 +533,7 @@ export default function CreatePostPage() {
                           className="size-full"
                           aria-label="Crop photo"
                         >
-                          <img src={previewUrls[index]} alt="" className="size-full object-cover" />
+                          <img src={previewUrls[index]} alt="" className="size-full object-contain" />
                         </button>
                       )}
                       <span className="pointer-events-none absolute left-2 bottom-2 rounded-[6px] bg-black/55 px-2 py-0.5 text-[11px] text-white">
@@ -585,14 +575,14 @@ export default function CreatePostPage() {
                       Click or drag media here
                     </span>
                     <span className={`${sourceSerif.className} text-[14px] leading-5 text-[#3C494A]`}>
-                      JPG, PNG, WEBP · Instagram size (4:5 / 1:1 / 1.91:1) · up to 50MB
+                      Photos or MP4 videos · Up to 6 files, 50MB each · Cropping optional
                     </span>
                   </div>
                 </button>
               )}
             </div>
 
-            <div className="flex items-center justify-between pt-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
               <span
                 className={`${sourceSerif.className} text-[12px] font-bold leading-4 tracking-[0.24px] text-[#3C494A]`}
               >
@@ -628,7 +618,7 @@ export default function CreatePostPage() {
             <p className="px-6 pb-2 text-[14px] text-red-600">{error}</p>
           ) : null}
 
-          <div className="bg-[#E5EEFF] border-t border-[rgba(211,228,254,0.3)] flex items-center justify-end gap-3 px-6 pt-[25px] pb-6">
+          <div className="bg-[#E5EEFF] border-t border-[rgba(211,228,254,0.3)] flex items-center justify-end gap-3 px-4 py-4 sm:px-6">
             <button
               type="button"
               onClick={saveDraft}
