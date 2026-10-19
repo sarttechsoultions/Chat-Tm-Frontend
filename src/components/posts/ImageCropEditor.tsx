@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { cropImageToFile, clampFeedAspect, FEED_MAX_ASPECT, loadImageFromSrc } from "../../lib/media";
+import { cropImageToFile, FEED_MAX_ASPECT, loadImageFromSrc } from "../../lib/media";
 
 export type ImageFormat = "original" | "square" | "portrait" | "landscape";
 
 const FORMATS: { id: ImageFormat; label: string; hint: string; ratio: number | null }[] = [
-  { id: "original", label: "Original", hint: "Fit to feed", ratio: null },
+  { id: "original", label: "Original", hint: "Full photo", ratio: null },
   { id: "square", label: "Square", hint: "1:1", ratio: 1 },
   { id: "portrait", label: "Portrait", hint: "4:5", ratio: 4 / 5 },
   { id: "landscape", label: "Landscape", hint: "1.91:1", ratio: FEED_MAX_ASPECT },
@@ -96,7 +96,7 @@ export default function ImageCropEditor({
   const aspect = useMemo(() => {
     const preset = FORMATS.find((item) => item.id === format)?.ratio;
     if (preset) return preset;
-    if (image) return clampFeedAspect(image.naturalWidth, image.naturalHeight);
+    if (image) return image.naturalWidth / image.naturalHeight;
     return 1;
   }, [format, image]);
 

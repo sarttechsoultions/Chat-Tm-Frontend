@@ -52,7 +52,7 @@ export async function preparePostFile(file: File): Promise<File> {
   }
 
   const image = await loadImage(file);
-  const crop = centerCropForFeed(image.naturalWidth || image.width, image.naturalHeight || image.height);
+  const crop = { x: 0, y: 0, width: image.naturalWidth || image.width, height: image.naturalHeight || image.height };
   const needsCrop = crop.width < image.width - 1 || crop.height < image.height - 1;
   const longest = Math.max(crop.width, crop.height);
   const tooLarge = longest > MAX_POST_IMAGE_EDGE || file.size > 1.5 * 1024 * 1024;

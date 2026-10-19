@@ -90,9 +90,13 @@ function PostMediaGrid({ media }: { media: PostItem["media"] }) {
 
   useEffect(() => {
     const first = media[0];
-    if (!first || first.type === "video" || first.type.includes("video")) {
-      setAspect(1);
-      return;
+    if (!first) { setAspect(1); return; }
+    if (first.type.toLowerCase().includes("video")) {
+      const video = document.createElement("video");
+      video.preload = "metadata";
+      video.onloadedmetadata = () => setAspect(clampFeedAspect(video.videoWidth, video.videoHeight));
+      video.src = first.url;
+      return () => { video.onloadedmetadata = null; video.removeAttribute("src"); video.load(); };
     }
     const image = new window.Image();
     image.onload = () => setAspect(clampFeedAspect(image.naturalWidth, image.naturalHeight));
@@ -107,13 +111,15 @@ function PostMediaGrid({ media }: { media: PostItem["media"] }) {
 export default function PostCard({
   post: initialPost,
   onDeleted,
+  initiallyShowComments = false,
 }: {
   post: PostItem;
+  initiallyShowComments?: boolean;
   onDeleted?: (id: string) => void;
   onUpdated?: (post: PostItem) => void;
 }) {
   const [post, setPost] = useState(initialPost);
-  const [showComments, setShowComments] = useState(false);
+  const [showComments, setShowComments] = useState(initiallyShowComments);
   const [comments, setComments] = useState<PostComment[]>([]);
   const [commentDraft, setCommentDraft] = useState("");
   const [loadingComments, setLoadingComments] = useState(false);
@@ -175,6 +181,12 @@ export default function PostCard({
       cancelled = true;
     };
   }, [sendOpen]);
+
+  useEffect(() => {
+    if (!initiallyShowComments) return;
+    setLoadingComments(true);
+    fetchPostComments(initialPost.id).then(setComments).catch(() => setError("Unable to load comments.")).finally(() => setLoadingComments(false));
+  }, [initiallyShowComments, initialPost.id]);
 
   async function handleLike() {
     const previous = post;
@@ -326,7 +338,7 @@ export default function PostCard({
   );
 
   return (
-    <div id={`post-${post.id}`} className="w-full bg-white rounded-[16px] p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] flex flex-col gap-2">
+    <div id={`post-${post.id}`} className="w-full min-w-0 bg-white rounded-[16px] p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] flex flex-col gap-2">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <Link href={`/profile/${author.username}`}>
@@ -424,10 +436,10 @@ export default function PostCard({
       </div>
 
       {post.heading ? (
-        <h3 className="pt-1 text-[18px] font-bold leading-6 text-[#111827]">{post.heading}</h3>
+        <h3 className="break-words pt-1 text-[18px] font-bold leading-6 text-[#111827]">{post.heading}</h3>
       ) : null}
       {post.body ? (
-        <p className="text-[14px] leading-5 text-[#1F2937] whitespace-pre-line pt-1">
+        <p className="text-[14px] leading-5 text-[#1F2937] break-words whitespace-pre-line pt-1">
           {renderCaption(post.body)}
         </p>
       ) : null}

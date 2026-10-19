@@ -34,6 +34,10 @@ export default function MainColumns({ children }: { children: React.ReactNode })
       ? ""
       : "pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-10";
 
+  if (pathname === "/watch") {
+    return <main className="min-h-0 flex-1 overflow-y-auto pb-24 md:pb-8">{children}</main>;
+  }
+
   if (isCall) {
     return (
       <div className="flex w-full flex-1 overflow-hidden">
