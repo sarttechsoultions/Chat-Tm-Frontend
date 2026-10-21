@@ -1,6 +1,10 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Info, Phone, Video } from "lucide-react";
+import ChatProfilePanel from "./ChatProfilePanel";
+import { ChatListSkeleton, ChatMessagesSkeleton, ChatProfileSkeleton } from "./ChatSkeletons";
+import { callApi, type Call, startCall } from "../../lib/api/calls";
 import Link from "next/link";
 import FigmaIcon from "../home/FigmaIcon";
 import { UserAvatar } from "../ui/UserAvatar";
@@ -148,6 +152,8 @@ function upsertConversation(list: Conversation[], next: Conversation) {
 
 export default function MessengerUI() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [callRecords, setCallRecords] = useState<Call[]>([]);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
@@ -772,16 +778,25 @@ export default function MessengerUI() {
       ).length
     : 0;
 
+  useEffect(()=>{
+    if (!activePartner || isGroupChat) { setCallRecords([]); return; }
+    let cancelled=false;
+    void callApi<{items:Call[]}>('?peerId='+encodeURIComponent(activePartner.id)).then(data=>{if(!cancelled)setCallRecords(data.items);}).catch(()=>{});
+    const updated=(call:Call)=>{if(cancelled)return;setCallRecords(items=>[call,...items.filter(item=>item.id!==call.id)]);};
+    socket?.on('call_updated',updated);
+    return()=>{cancelled=true;socket?.off('call_updated',updated);};
+  },[activePartner?.id,isGroupChat,socket]);
   const groupedMessages = useMemo(() => {
-    const groups: { label: string; items: Message[] }[] = [];
-    messages.forEach((msg) => {
+    const groups: { label: string; items: (Message & { callRecord?: Call })[] }[] = [];
+    const calls: (Message & {callRecord?:Call})[] = isGroupChat ? [] : callRecords.filter(call=>['ENDED','MISSED'].includes(call.status) && ((call.callerId===currentUser?.id&&call.calleeId===activePartner?.id)||(call.calleeId===currentUser?.id&&call.callerId===activePartner?.id))).map(call=>({id:'call-'+call.id,conversationId:activeChatId||'',senderId:call.callerId,body:'',type:'TEXT',createdAt:call.endedAt||call.startedAt,callRecord:call}));
+    [...messages,...calls].sort((a,b)=>new Date(a.createdAt).getTime()-new Date(b.createdAt).getTime()).forEach((msg) => {
       const label = formatDayLabel(msg.createdAt);
       const last = groups[groups.length - 1];
       if (!last || last.label !== label) groups.push({ label, items: [msg] });
       else last.items.push(msg);
     });
     return groups;
-  }, [messages]);
+  }, [messages,callRecords,isGroupChat,currentUser?.id,activePartner?.id,activeChatId]);
 
   return (
     <div className="h-full w-full flex bg-white overflow-hidden relative sm:border sm:border-[#D3E4FE]">
@@ -831,7 +846,7 @@ export default function MessengerUI() {
 
         <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col items-center gap-1 px-[8.5px] pb-3">
           {loadingChats ? (
-            <p className="py-10 text-[13px] text-[#6B7280]">Loading chats…</p>
+            <ChatListSkeleton/>
           ) : visibleConversations.length === 0 ? (
             <div className="px-4 py-10 text-center chat-fade-in">
               <p className="text-[14px] text-[#0B1C30] font-medium">No conversations yet</p>
@@ -943,14 +958,15 @@ export default function MessengerUI() {
                 </div>
               </div>
               <div className="flex items-center gap-1">
+                {!isGroupChat && activePartner && <button aria-label="Chat profile details" aria-expanded={detailsOpen} onClick={()=>setDetailsOpen(!detailsOpen)} className="rounded-full p-2 text-[#00696F] hover:bg-[#EFF4FF]"><Info size={20}/></button>}
                 {!isGroupChat ? (
                   <>
-                    <Link href="/call/audio" className="p-2 rounded-full hover:bg-[#EFF4FF] text-[#00696F] transition">
+                    <button type="button" onClick={()=>activePartner && startCall(activePartner.id,"AUDIO")} className="p-2 rounded-full hover:bg-[#EFF4FF] text-[#00696F] transition">
                       <FigmaIcon src="/figma/icons/call-phone.svg" alt="Audio Call" width={18} height={18} />
-                    </Link>
-                    <Link href="/call/video" className="p-2 rounded-full hover:bg-[#EFF4FF] text-[#00696F] transition">
+                    </button>
+                    <button type="button" onClick={()=>activePartner && startCall(activePartner.id,"VIDEO")} className="p-2 rounded-full hover:bg-[#EFF4FF] text-[#00696F] transition">
                       <FigmaIcon src="/figma/icons/call-video.svg" alt="Video Call" width={20} height={16} />
-                    </Link>
+                    </button>
                   </>
                 ) : null}
               </div>
@@ -958,7 +974,7 @@ export default function MessengerUI() {
 
             <div className="flex-1 overflow-y-auto no-scrollbar bg-[#F8F9FF] px-4 py-6 flex flex-col gap-4">
               {openingFriend || loadingMessages ? (
-                <p className="m-auto text-[13px] text-[#6B7280]">Loading messages…</p>
+                <ChatMessagesSkeleton/>
               ) : messages.length === 0 ? (
                 <div className="m-auto text-center chat-slide-up">
                   {isGroupChat && activeChat ? (
@@ -982,6 +998,11 @@ export default function MessengerUI() {
                       </span>
                     </div>
                     {group.items.map((msg) => {
+                      if (msg.callRecord) {
+                        const record=msg.callRecord;const mine=record.callerId===currentUser?.id;
+                        const duration=record.status==='ENDED'&&record.endedAt?Math.max(0,Math.floor((new Date(record.endedAt).getTime()-new Date(record.startedAt).getTime())/1000)):0;
+                        return <div key={msg.id} id={'message-'+msg.id} className={'flex '+(mine?'justify-end':'justify-start')}><button onClick={()=>activePartner&&startCall(activePartner.id,record.type)} className="flex max-w-[85%] items-center gap-3 rounded-2xl border border-[#d9e8ea] bg-white px-4 py-3 text-left shadow-sm"><span className={'flex size-10 shrink-0 items-center justify-center rounded-full '+(record.status==='MISSED'?'bg-red-50 text-red-500':'bg-[#e4f2f2] text-[#00696F]')}>{record.type==='VIDEO'?<Video size={19}/>:<Phone size={19}/>}</span><span><span className="block text-sm font-semibold text-[#0B1C30]">{record.status==='MISSED'?'Missed ':''}{record.type==='VIDEO'?'Video call':'Audio call'}</span><span className="mt-1 block text-xs text-gray-500">{mine?'Outgoing':'Incoming'} · {record.status==='ENDED'?Math.floor(duration/60)+':'+String(duration%60).padStart(2,'0'):formatClock(msg.createdAt)}</span><span className="mt-1 block text-[11px] font-medium text-[#00696F]">Tap to call back</span></span></button></div>;
+                      }
                       const isMine = msg.senderId === currentUser?.id;
                       const sender =
                         activeChat?.members.find((member) => member.user.id === msg.senderId)?.user ||
@@ -989,7 +1010,7 @@ export default function MessengerUI() {
 
                       return (
                         <div
-                          key={msg.id}
+                          key={msg.id} id={"message-"+msg.id}
                           className={`group relative flex flex-col ${
                             isMine ? "items-end chat-bubble-own" : "items-start chat-bubble-friend"
                           } ${msg.pending ? "opacity-70" : ""} ${msg.failed ? "opacity-80" : ""}`}
@@ -1010,7 +1031,7 @@ export default function MessengerUI() {
                             </div>
                           )}
 
-                          <div className={`flex items-end gap-2 max-w-[85%] sm:max-w-[70%] ${isMine ? "flex-row-reverse" : ""}`}>
+                          <div className={`relative flex w-fit min-w-0 items-end gap-2 max-w-[85%] sm:max-w-[65%] sm:w-fit ${isMine ? "flex-row-reverse" : ""}`}>
                             {!isMine && (
                               <UserAvatar
                                 avatarUrl={sender?.avatar}
@@ -1020,7 +1041,7 @@ export default function MessengerUI() {
                             )}
 
                             <div
-                              className={`relative rounded-2xl p-3 shadow-sm ${
+                              className={`relative min-w-0 max-w-[360px] rounded-2xl px-3 py-2.5 shadow-sm ${
                                 isMine
                                   ? "bg-[#00696F] text-white rounded-br-none"
                                   : "bg-[#E5EEFF] text-[#0B1C30] rounded-bl-none"
@@ -1038,7 +1059,7 @@ export default function MessengerUI() {
                                       <img
                                         src={msg.mediaUrl}
                                         alt={msg.fileName === "GIF" ? "GIF" : "Attachment"}
-                                        className="max-w-[240px] max-h-[240px] rounded-lg object-cover cursor-pointer"
+                                        className="w-full max-w-[240px] max-h-[240px] rounded-lg object-cover cursor-pointer"
                                         onClick={(event) => {
                                           event.stopPropagation();
                                           const sharedLink =
@@ -1056,7 +1077,7 @@ export default function MessengerUI() {
                                     </div>
                                   )}
                                   {msg.type === "AUDIO" && (
-                                    <audio controls src={msg.mediaUrl} className="w-60" />
+                                    <audio controls src={msg.mediaUrl} className="w-full max-w-60" />
                                   )}
                                   {msg.type === "VIDEO" && (
                                     <video controls src={msg.mediaUrl} className="max-w-[240px] rounded-lg" />
@@ -1074,7 +1095,7 @@ export default function MessengerUI() {
                                 </div>
                               )}
 
-                              <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
+                              <p className="whitespace-pre-wrap [overflow-wrap:anywhere] text-[14px] leading-[1.55]">
                                 {renderMessageBody(msg.body, isMine)}
                               </p>
                               <p
@@ -1114,7 +1135,7 @@ export default function MessengerUI() {
 
                             {!msg.isDeleted && (
                               <div
-                                className={`relative ${
+                                className={`absolute bottom-full mb-2 z-10 ${isMine ? "right-0" : "left-0"} ${
                                   actionMsgId === msg.id || moreReactionsFor === msg.id
                                     ? "opacity-100"
                                     : "opacity-0 group-hover:opacity-100"
@@ -1274,7 +1295,7 @@ export default function MessengerUI() {
               </button>
             </form>
           </>
-        ) : (
+        ) : loadingChats ? <ChatMessagesSkeleton/> : (
           <div className="flex-1 flex flex-col items-center justify-center bg-[#F8F9FF] chat-fade-in">
             <p className="text-[#0B1C30] text-[16px] font-semibold">Your messages</p>
             <p className="mt-1 text-[#6B7280] text-[14px]">Select a conversation or message a friend.</p>
@@ -1289,6 +1310,8 @@ export default function MessengerUI() {
         )}
       </section>
 
+      {loadingChats && !activePartner && <ChatProfileSkeleton/>}
+      {activeChatId && activePartner && !isGroupChat && <ChatProfilePanel chatId={activeChatId} messages={messages} user={activePartner} name={activeName} online={isActiveOnline} open={detailsOpen} onClose={()=>setDetailsOpen(false)}/>}
       {showNewChat && (
         <div className="absolute inset-0 z-20 flex bg-black/20 chat-fade-in">
           <div className="m-auto w-[min(420px,92%)] max-h-[80%] overflow-hidden rounded-2xl bg-white shadow-xl chat-slide-up">
@@ -1444,3 +1467,5 @@ export default function MessengerUI() {
     </div>
   );
 }
+
+

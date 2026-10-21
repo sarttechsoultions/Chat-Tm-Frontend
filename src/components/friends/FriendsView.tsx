@@ -37,6 +37,50 @@ function State({ loading, message }: { loading: boolean; message: string }) {
   );
 }
 
+function FriendListSkeleton({ cards = 4 }: { cards?: number }) {
+  return (
+    <div
+      aria-label="Loading friends"
+      aria-busy="true"
+      className="rounded-[12px] bg-white px-3 shadow-[0_0_4px_rgba(0,0,0,0.14)] sm:px-4"
+    >
+      {Array.from({ length: cards }).map((_, index) => (
+        <div
+          key={index}
+          className="flex flex-col gap-3 border-b border-[#F3F4F6] py-4 last:border-b-0 sm:flex-row sm:items-center"
+        >
+          <div className="flex min-w-0 items-center gap-3 sm:flex-1">
+            <div className="size-14 shrink-0 animate-pulse rounded-full bg-[#EEF2F7] sm:size-16" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="h-4 w-3/4 animate-pulse rounded bg-[#EEF2F7]" />
+              <div className="h-3 w-1/2 animate-pulse rounded bg-[#F3F6FA]" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+            <div className="h-9 animate-pulse rounded-[8px] bg-[#E8F4F3] sm:w-24" />
+            <div className="h-9 animate-pulse rounded-[8px] bg-[#F3F4F6] sm:w-20" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FriendGridSkeleton({ cards = 3 }: { cards?: number }) {
+  return (
+    <div aria-label="Loading friends" aria-busy="true" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {Array.from({ length: cards }).map((_, index) => (
+        <div key={index} className="animate-pulse rounded-[12px] bg-white p-4 shadow-[0_0_4px_rgba(0,0,0,0.14)]">
+          <div className="mx-auto size-16 rounded-full bg-[#EEF2F7]" />
+          <div className="mx-auto mt-4 h-4 w-2/3 rounded bg-[#EEF2F7]" />
+          <div className="mx-auto mt-2 h-3 w-1/2 rounded bg-[#F3F6FA]" />
+          <div className="mt-5 h-10 rounded-[8px] bg-[#E8F4F3]" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function FriendsView({ tab }: { tab: FriendTab }) {
   const [friends, setFriends] = useState<FriendUser[]>([]);
   const [requests, setRequests] = useState<FriendRequest[]>([]);
@@ -249,7 +293,7 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
             </span>
           </div>
           {loading ? (
-            <State loading message="" />
+            <FriendGridSkeleton />
           ) : requests.length ? (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {requests.map(({ id, user }) => (
@@ -314,7 +358,7 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
         <div className="mt-6">
           <h2 className="mb-4 text-[18px] font-bold">People You May Know</h2>
           {loading ? (
-            <State loading message="" />
+            <FriendGridSkeleton />
           ) : suggestions.length ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {suggestions.map((user) => {
@@ -385,42 +429,46 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
             />
           </div>
           {loading ? (
-            <State loading message="" />
+            <FriendListSkeleton />
           ) : visibleFriends.length ? (
-            <div className="rounded-[12px] bg-white px-4 shadow-[0_0_4px_rgba(0,0,0,0.14)]">
+            <div className="rounded-[12px] bg-white px-3 shadow-[0_0_4px_rgba(0,0,0,0.14)] sm:px-4">
               {visibleFriends.map((user) => (
                 <article
                   key={user.id}
-                  className="flex items-center gap-4 border-b border-[#F3F4F6] py-4 last:border-b-0"
+                  className="flex flex-col gap-3 border-b border-[#F3F4F6] py-4 last:border-b-0 sm:flex-row sm:items-center sm:gap-4"
                 >
-                  <UserAvatar
-                    avatarUrl={user.avatar}
-                    name={nameOf(user)}
-                    size="size-16"
-                    isOnline={user.isOnline}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <h3 className="truncate font-bold">{nameOf(user)}</h3>
-                    <p className="text-[12px] text-[#3C494A]">
-                      {user.mutualFriends} mutual friends
-                    </p>
+                  <div className="flex min-w-0 items-center gap-3 sm:flex-1">
+                    <UserAvatar
+                      avatarUrl={user.avatar}
+                      name={nameOf(user)}
+                      size="size-14 sm:size-16"
+                      isOnline={user.isOnline}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <h3 className="break-words font-bold leading-5 text-[#111827]">{nameOf(user)}</h3>
+                      <p className="mt-0.5 text-[12px] text-[#3C494A]">
+                        {user.mutualFriends} mutual friends
+                      </p>
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    disabled={working === user.id}
-                    onClick={() => void handleMessageClick(user.id)}
-                    className="rounded-[8px] bg-[rgba(0,105,111,0.1)] px-4 py-2 text-[14px] font-bold text-[#00696F] hover:bg-[rgba(0,105,111,0.2)] transition disabled:opacity-60"
-                  >
-                    {working === user.id ? "Opening..." : "Message"}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={working === user.id}
-                    onClick={() => setUnfriendTarget(user)}
-                    className="rounded-[8px] bg-[#F3F4F6] px-3 py-2 text-[14px] font-bold text-[#4B5563] hover:bg-gray-200 transition disabled:opacity-60"
-                  >
-                    Unfriend
-                  </button>
+                  <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:shrink-0">
+                    <button
+                      type="button"
+                      disabled={working === user.id}
+                      onClick={() => void handleMessageClick(user.id)}
+                      className="rounded-[8px] bg-[rgba(0,105,111,0.1)] px-3 py-2 text-[14px] font-bold text-[#00696F] transition hover:bg-[rgba(0,105,111,0.2)] disabled:opacity-60 sm:px-4"
+                    >
+                      {working === user.id ? "Opening..." : "Message"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={working === user.id}
+                      onClick={() => setUnfriendTarget(user)}
+                      className="rounded-[8px] bg-[#F3F4F6] px-3 py-2 text-[14px] font-bold text-[#4B5563] transition hover:bg-gray-200 disabled:opacity-60"
+                    >
+                      Unfriend
+                    </button>
+                  </div>
                 </article>
               ))}
             </div>
