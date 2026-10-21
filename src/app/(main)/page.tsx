@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import CreatePostCard from "../../components/home/CreatePostCard";
+import PostSkeleton from "../../components/home/PostSkeleton";
 import StoriesSection from "../../components/home/StoriesSection";
 import PostCard from "../../components/home/PostCard";
 import { fetchPosts, type PostItem } from "../../lib/api/posts";
@@ -44,7 +45,7 @@ export default function HomeFeed() {
         </div>
       ) : null}
       {loading ? (
-        <p className="py-8 text-center text-[14px] text-[#6B7280]">Loading posts…</p>
+        <PostSkeleton/>
       ) : posts.length ? (
         posts.map((post) => (
           <PostCard

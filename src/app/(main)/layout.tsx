@@ -1,3 +1,4 @@
+import CallManager from "../../components/calls/CallManager";
 import React from "react";
 import Navbar from "../../components/home/Navbar";
 import MainColumns from "../../components/home/MainColumns";
@@ -19,6 +20,7 @@ export default function MainLayout({
         <MainColumns>{children}</MainColumns>
         <MobileBottomNav />
         <MobileDrawer />
+        <CallManager />
       </div>
     </AppShellProvider>
   );

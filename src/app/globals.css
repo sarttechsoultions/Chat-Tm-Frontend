@@ -1,5 +1,19 @@
 @import "tailwindcss";
 
+@layer base {
+  :where(button, a[href], [role="button"], summary, select,
+    input[type="button"], input[type="submit"], input[type="reset"],
+    input[type="checkbox"], input[type="radio"], input[type="range"],
+    input[type="color"], input[type="file"]):not(:disabled):not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  :where(button, input, select, textarea):disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+}
+
 
 @layer utilities {
   /* Chrome, Safari aur Opera ke liye scrollbar hide karna */

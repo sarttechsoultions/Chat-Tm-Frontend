@@ -54,25 +54,25 @@ export default function LeftSidebar({ onNavigate }: { onNavigate?: () => void })
   }, []);
 
   return (
-    <aside className="w-full flex flex-col gap-6 p-[10px] bg-white rounded-[10px] shadow-[0px_4px_2px_rgba(0,0,0,0.25)] font-sans select-none">
-   <div className="relative w-full shrink-0 rounded-[16px] bg-[#117378] p-6 flex flex-col items-center overflow-hidden shadow-[0px_4px_6px_-1px_rgba(0,0,0,0.1),0px_2px_4px_-2px_rgba(0,0,0,0.1)]">
+    <aside className="w-full flex flex-col gap-3 lg:gap-6 p-[10px] bg-white rounded-[10px] shadow-[0px_4px_2px_rgba(0,0,0,0.25)] font-sans select-none">
+   <div className="relative w-full shrink-0 rounded-[16px] bg-[#117378] p-4 lg:p-6 flex flex-col items-center overflow-hidden shadow-[0px_4px_6px_-1px_rgba(0,0,0,0.1),0px_2px_4px_-2px_rgba(0,0,0,0.1)]">
         <div className="pointer-events-none absolute bg-white blur-[20px] opacity-10 right-[-64px] rounded-full size-[128px] top-[-64px]" />
 
-          <Link href="/profile" className="relative z-10 mb-3 shrink-0">
-            <UserAvatar avatarUrl={avatar} name={name} size={80} className="!border-4 !border-white/30" isOnline={true} />
+          <Link href="/profile" className="relative z-10 mb-2 lg:mb-3 shrink-0">
+            <UserAvatar avatarUrl={avatar} name={name} size={80} className="!size-14 lg:!size-20 !border-[3px] lg:!border-4 !border-white/30" isOnline={true} />
           </Link>
 
           <div className="flex max-w-full items-center justify-center gap-1.5 px-1">
-            <Link href="/profile" className="truncate text-[18px] font-bold leading-[28px] text-white hover:underline">
+            <Link href="/profile" className="truncate text-[16px] lg:text-[18px] font-bold leading-6 lg:leading-[28px] text-white hover:underline">
             {name}
           </Link>
           <span className="relative size-[14px] overflow-clip shrink-0">
             <img src="/figma/icons/verified-white.svg" alt="" width={14} height={14} className="size-full object-contain" />
           </span>
         </div>
-        <p className="text-[14px] leading-[20px] text-[#DBEAFE] mb-4">{handle}</p>
+        <p className="text-[12px] lg:text-[14px] leading-[20px] text-[#DBEAFE] mb-3 lg:mb-4">{handle}</p>
 
-        <div className="w-full backdrop-blur-[6px] bg-white/20 border border-white/20 rounded-[12px] px-[13px] py-[9px] flex items-center gap-2 mb-2">
+        <div className="w-full backdrop-blur-[6px] bg-white/20 border border-white/20 rounded-[12px] px-2.5 py-2 lg:px-[13px] lg:py-[9px] flex items-center gap-2 mb-2">
           <span className="relative size-[14px] overflow-clip shrink-0">
             <img src="/figma/icons/clock.svg" alt="" width={14} height={14} className="size-full object-contain" />
           </span>
@@ -85,14 +85,14 @@ export default function LeftSidebar({ onNavigate }: { onNavigate?: () => void })
             </span>
           </div>
         </div>
-        <p className="text-[10px] leading-[15px] text-[#DBEAFE] text-center mb-4 opacity-80">
+        <p className="text-[10px] leading-[15px] text-[#DBEAFE] text-center mb-2 lg:mb-4 opacity-80">
           KYC is currently under review
         </p>
 
-        <div className="w-full grid grid-cols-3 text-center border-t border-white/20 pt-[17px]">
+        <div className="w-full grid grid-cols-3 text-center border-t border-white/20 pt-2.5 lg:pt-[17px]">
           <div>
-            <div className="text-[18px] font-bold leading-[28px] text-white">{friendsCount}</div>
-            <div className="text-[12px] leading-[16px] text-[#DBEAFE]">Friends</div>
+            <div className="text-[16px] lg:text-[18px] font-bold leading-6 lg:leading-[28px] text-white">{friendsCount}</div>
+            <div className="text-[11px] lg:text-[12px] leading-[16px] text-[#DBEAFE]">Friends</div>
           </div>
           <div>
             <div className="text-[18px] font-bold leading-[28px] text-white">{postsCount}</div>

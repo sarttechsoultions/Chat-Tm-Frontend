@@ -17,16 +17,18 @@ function isVideo(type: string) {
 function Slide({
   item,
   aspect,
+  onVideoOpen,
 }: {
   item: CarouselMedia;
   aspect: number;
+  onVideoOpen?: (item: CarouselMedia) => void;
 }) {
   return (
     <div className="relative w-full overflow-hidden bg-black" style={{ aspectRatio: String(aspect) }}>
       {isVideo(item.type) ? (
-        <div className="absolute inset-0"><VideoPlayer src={item.url} /></div>
+        <div className="absolute inset-0"><VideoPlayer src={item.url} onOpenReel={onVideoOpen ? () => onVideoOpen(item) : undefined} /></div>
       ) : (
-        <img src={item.url} alt="" className="absolute inset-0 size-full object-contain" />
+        <img src={item.url} alt="" className="absolute inset-0 size-full object-cover object-center" />
       )}
     </div>
   );
@@ -37,11 +39,13 @@ export default function MediaCarousel({
   aspect = 1,
   overlay,
   onSlideClick,
+  onVideoOpen,
 }: {
   items: CarouselMedia[];
   aspect?: number;
   overlay?: (item: CarouselMedia, index: number) => React.ReactNode;
   onSlideClick?: (item: CarouselMedia, index: number) => void;
+  onVideoOpen?: (item: CarouselMedia) => void;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
@@ -77,10 +81,10 @@ export default function MediaCarousel({
       <div className="relative overflow-hidden rounded-[12px]">
         {onSlideClick && !isVideo(item.type) ? (
           <button type="button" className="block w-full" onClick={() => onSlideClick(item, 0)}>
-            <Slide item={item} aspect={aspect} />
+            <Slide item={item} aspect={aspect} onVideoOpen={onVideoOpen} />
           </button>
         ) : (
-          <Slide item={item} aspect={aspect} />
+          <Slide item={item} aspect={aspect} onVideoOpen={onVideoOpen} />
         )}
         {overlay?.(item, 0)}
       </div>
@@ -111,10 +115,10 @@ export default function MediaCarousel({
                 className="block w-full"
                 onClick={() => onSlideClick(item, slideIndex)}
               >
-                <Slide item={item} aspect={aspect} />
+                <Slide item={item} aspect={aspect} onVideoOpen={onVideoOpen} />
               </button>
             ) : (
-              <Slide item={item} aspect={aspect} />
+              <Slide item={item} aspect={aspect} onVideoOpen={onVideoOpen} />
             )}
             {overlay?.(item, slideIndex)}
           </div>

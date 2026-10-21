@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { UserAvatar } from "../ui/UserAvatar";
 import { listFriends, type FriendUser } from "../../lib/auth";
 import { playCommentSound, playLikeSound, playShareSound } from "../../lib/sounds";
@@ -18,7 +19,7 @@ import {
   type PostComment,
   type PostItem,
 } from "../../lib/api/posts";
-import { clampFeedAspect } from "../../lib/media";
+
 import MediaCarousel from "../posts/MediaCarousel";
 
 function formatPostTime(iso: string) {
@@ -85,27 +86,10 @@ function asLiker(user: ReturnType<typeof useCurrentUser>): PostAuthor | null {
   };
 }
 
-function PostMediaGrid({ media }: { media: PostItem["media"] }) {
-  const [aspect, setAspect] = useState(1);
-
-  useEffect(() => {
-    const first = media[0];
-    if (!first) { setAspect(1); return; }
-    if (first.type.toLowerCase().includes("video")) {
-      const video = document.createElement("video");
-      video.preload = "metadata";
-      video.onloadedmetadata = () => setAspect(clampFeedAspect(video.videoWidth, video.videoHeight));
-      video.src = first.url;
-      return () => { video.onloadedmetadata = null; video.removeAttribute("src"); video.load(); };
-    }
-    const image = new window.Image();
-    image.onload = () => setAspect(clampFeedAspect(image.naturalWidth, image.naturalHeight));
-    image.src = first.url;
-  }, [media]);
-
+function PostMediaGrid({ media, onVideoOpen }: { media: PostItem["media"]; onVideoOpen: () => void }) {
   if (!media.length) return null;
 
-  return <MediaCarousel items={media} aspect={aspect} />;
+  return <MediaCarousel items={media} aspect={1} onVideoOpen={onVideoOpen} />;
 }
 
 export default function PostCard({
@@ -137,7 +121,9 @@ export default function PostCard({
   const [loadingFriends, setLoadingFriends] = useState(false);
   const [likeBurst, setLikeBurst] = useState(false);
   const [error, setError] = useState("");
+  const menuRef = useRef<HTMLDivElement>(null);
   const commentInputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
   const me = useCurrentUser();
   const isOwner = me?.id === post.author.id;
   const author =
@@ -188,6 +174,7 @@ export default function PostCard({
     fetchPostComments(initialPost.id).then(setComments).catch(() => setError("Unable to load comments.")).finally(() => setLoadingComments(false));
   }, [initiallyShowComments, initialPost.id]);
 
+  useEffect(()=>{if(!menuOpen)return;const outside=(e:PointerEvent)=>{if(!menuRef.current?.contains(e.target as Node))setMenuOpen(false);};const escape=(e:KeyboardEvent)=>{if(e.key==="Escape")setMenuOpen(false);};document.addEventListener("pointerdown",outside);document.addEventListener("keydown",escape);return()=>{document.removeEventListener("pointerdown",outside);document.removeEventListener("keydown",escape);};},[menuOpen]);
   async function handleLike() {
     const previous = post;
     const liking = !post.liked;
@@ -402,19 +389,20 @@ export default function PostCard({
             ) : null}
           </div>
         </div>
-        <div className="relative">
+        <div ref={menuRef} className="relative shrink-0">
           <button
             type="button"
-            className="size-8 rounded-full flex items-center justify-center"
+            className="flex size-11 touch-manipulation items-center justify-center rounded-full hover:bg-gray-50"
             onClick={() => setMenuOpen((open) => !open)}
-            aria-label="Post options"
+            aria-label="Post options" aria-expanded={menuOpen}
           >
             <span className="relative w-[4px] h-[14px] overflow-clip">
               <img src="/figma/icons/more-v.svg" alt="" width={4} height={14} className="size-full object-contain" />
             </span>
           </button>
-          {menuOpen && isOwner ? (
-            <div className="absolute right-0 top-9 z-10 min-w-[140px] rounded-[10px] bg-white py-1 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+          {menuOpen ? (
+            <div className="absolute right-0 top-11 z-30 min-w-[190px] rounded-[10px] bg-white py-1 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+              {isOwner && <>
               <Link
                 href={`/create-post?edit=${post.id}`}
                 onClick={() => setMenuOpen(false)}
@@ -430,6 +418,10 @@ export default function PostCard({
               >
                 Delete post
               </button>
+              </>}
+              <button type="button" onClick={()=>{setMenuOpen(false);void copyLink();}} className="block w-full px-4 py-3 text-left text-sm hover:bg-gray-50">Copy link</button>
+              <button type="button" onClick={()=>{setMenuOpen(false);setShareOpen(true);}} className="block w-full px-4 py-3 text-left text-sm hover:bg-gray-50">Share post</button>
+              {!isOwner && <Link href={"/profile/"+author.username} onClick={()=>setMenuOpen(false)} className="block w-full px-4 py-3 text-left text-sm hover:bg-gray-50">View profile</Link>}
             </div>
           ) : null}
         </div>
@@ -444,7 +436,7 @@ export default function PostCard({
         </p>
       ) : null}
 
-      {post.media.length ? <PostMediaGrid media={post.media} /> : null}
+      {post.media.length ? <PostMediaGrid media={post.media} onVideoOpen={() => router.push(`/watch?reel=${post.id}`)} /> : null}
 
       <div className="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar border-b border-[#F3F4F6] py-2">
         <div className="flex min-h-5 items-center gap-1">

@@ -4,18 +4,19 @@ import StoryActions from "../stories/StoryActions";
 import { StoryVideo, StoryAudio } from "../stories/StoryTools";
 import { imageStyle } from "../stories/StoryImage";
 import Link from "next/link";
-import { X, ChevronLeft, ChevronRight, Trash2, Pause, Play, Eye } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Trash2, Pause, Play, Eye, Plus } from "lucide-react";
 import { listStories, getStoryViewers, viewStory, deleteStory, type Story } from "../../lib/api/stories";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { UserAvatar } from "../ui/UserAvatar";
 export default function StoriesSection() {
+  const [loadingStories, setLoadingStories] = useState(true);
   const [actionsBusy, setActionsBusy] = useState(false);
   const [viewersOpen, setViewersOpen] = useState(false);
   const [viewers, setViewers] = useState<Awaited<ReturnType<typeof getStoryViewers>>["items"]>([]);
   const [viewerError, setViewerError] = useState("");
   const [viewersLoading, setViewersLoading] = useState(false);
   const [stories, setStories] = useState<Story[]>([]); const [active, setActive] = useState<string | null>(null); const [error, setError] = useState(""); const [paused, setPaused] = useState(false); const [progress, setProgress] = useState(0); const me = useCurrentUser();
-  useEffect(() => { const load = () => listStories().then(data => { setStories(data.items); }).catch(() => setError("Unable to load stories.")); void load(); const timer = setInterval(() => void load(), 60000); return () => clearInterval(timer); }, []);
+  useEffect(() => { const load = () => listStories().then(data => { setStories(data.items); }).catch(() => setError("Unable to load stories.")).finally(()=>setLoadingStories(false)); void load(); const timer = setInterval(() => void load(), 60000); return () => clearInterval(timer); }, []);
   useEffect(() => { if (!stories.length) return; const requested = new URLSearchParams(window.location.search).get("story"); if (!requested) return; const found = stories.find(item=>item.id===requested); if (found) setActive(found.id); else setError("Story expired or unavailable for your audience."); const url = new URL(window.location.href); url.searchParams.delete("story"); window.history.replaceState(null,"",url); }, [stories]);
   const available = stories.filter(story => new Date(story.expiresAt).getTime() > Date.now());
   const index = available.findIndex(story => story.id === active); const story = available[index]; const video = !!story && /\/video\/|\.(mp4|webm|mov)(\?|$)/i.test(story.mediaUrl);
@@ -33,7 +34,8 @@ export default function StoriesSection() {
     return ()=>{cancelled=true;clearInterval(timer);};
   }, [viewersOpen, active]);
   return <section className="relative rounded-2xl bg-white p-4 shadow-sm"><h2 className="mb-3 font-bold text-[#0B1C30]">Stories</h2>{error && <p role="status" className="mb-2 text-xs text-red-600">{error}</p>}<div className="no-scrollbar flex gap-3 overflow-x-auto">
-    <Link href="/create-story" className="flex h-40 w-28 shrink-0 flex-col items-center justify-center gap-3 rounded-xl bg-[#e7f3f3] text-center text-xs font-semibold text-[#00696F]"><span className="flex size-10 items-center justify-center rounded-full bg-[#00696F] text-2xl text-white">+</span>Create story</Link>
+    <Link href="/create-story" className="group flex h-40 w-28 shrink-0 flex-col items-center justify-center gap-3 rounded-xl border border-[#d8ebeb] bg-gradient-to-b from-[#eff8f8] to-[#e1f0f0] text-center text-xs font-semibold text-[#00696F] transition hover:border-[#9bcaca] hover:shadow-sm focus-visible:outline-2 focus-visible:outline-[#00696F]"><span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#00696F] text-white shadow-[0_4px_12px_rgba(0,105,111,0.2)] transition-transform group-hover:scale-105"><Plus aria-hidden="true" size={24} strokeWidth={2.5}/></span>Create story</Link>
+    {loadingStories && <div role="status" aria-label="Loading stories" className="flex shrink-0 gap-3"><span className="sr-only">Loading stories</span>{[0,1,2,3].map(i=><div key={i} aria-hidden="true" className="relative h-40 w-28 shrink-0 overflow-hidden rounded-xl bg-[#edf2f5] motion-safe:animate-pulse"><div className="absolute left-2 top-2 size-8 rounded-full bg-[#dce6ed]"/><div className="absolute bottom-3 left-2 h-2.5 w-16 rounded-full bg-[#dce6ed]"/></div>)}</div>}
     {available.map(item => <button key={item.id} onClick={() => { setActive(item.id); setPaused(false); }} className="relative h-40 w-28 shrink-0 overflow-hidden rounded-xl bg-[#101820] text-left">{/\/video\/|\.(mp4|webm|mov)(\?|$)/i.test(item.mediaUrl) ? <video src={item.mediaUrl} muted preload="metadata" className="size-full object-cover" /> : <img src={item.mediaUrl} alt="" className="size-full object-cover" />}<div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" /><div className={`absolute left-2 top-2 rounded-full ring-2 ${item.viewed ? "ring-gray-300" : "ring-[#16b4b8]"}`}><UserAvatar avatarUrl={item.author.avatar} name={item.author.firstName} size={30} /></div><span className="absolute inset-x-2 bottom-2 truncate text-xs font-semibold text-white">{item.authorId === me?.id ? "Your story" : item.author.firstName}</span></button>)}
   </div>
   {story && <div role="dialog" aria-modal="true" aria-label="Story viewer" className="fixed inset-0 z-[100] flex items-center justify-center bg-[#080e14]/95 p-3"><button autoFocus aria-label="Close story" onClick={() => setActive(null)} className="absolute right-4 top-4 z-20 rounded-full bg-white/15 p-3 text-white"><X /></button><div className="relative flex aspect-[9/16] max-h-[90dvh] w-full max-w-[420px] items-center justify-center overflow-hidden rounded-2xl bg-black text-white">
