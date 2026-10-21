@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Clapperboard, ThumbsUp, MessageCircle, Share2, Bookmark, History, Sparkles, Search, SlidersHorizontal, UserRound } from "lucide-react";
@@ -14,7 +14,7 @@ function readIds(key: string): string[] { try { return JSON.parse(localStorage.g
 function ReelsSkeleton() {
   return <div aria-label="Loading reels" aria-busy="true" className="mx-auto flex min-h-0 w-full flex-1 animate-pulse flex-col overflow-hidden bg-[#101820] sm:max-w-[440px] sm:rounded-2xl"><div className="h-[58%] w-full bg-[#172831]" /><div className="relative flex flex-1 flex-col justify-end p-4"><div className="absolute right-4 top-5 flex flex-col gap-4"><div className="size-10 rounded-full bg-white/15" /><div className="size-10 rounded-full bg-white/15" /><div className="size-10 rounded-full bg-white/15" /></div><div className="flex items-center gap-3"><div className="size-9 rounded-full bg-white/20" /><div className="h-4 w-28 rounded bg-white/20" /></div><div className="mt-3 h-3 w-3/4 rounded bg-white/15" /><div className="mt-2 h-3 w-1/2 rounded bg-white/10" /><div className="mt-5 h-1.5 w-full rounded-full bg-white/20" /></div></div>;
 }
-export default function WatchPage() {
+function WatchPageContent() {
   const searchParams = useSearchParams();
   const [posts, setPosts] = useState<PostItem[]>([]);
   const [tab, setTab] = useState("For you");
@@ -79,4 +79,8 @@ export default function WatchPage() {
       })}</div> : null}
     </section>
   </div>;
+}
+
+export default function WatchPage() {
+  return <Suspense fallback={<div className="size-full bg-[#101820]" />}><WatchPageContent /></Suspense>;
 }
