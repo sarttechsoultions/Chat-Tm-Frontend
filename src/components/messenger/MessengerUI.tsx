@@ -161,6 +161,7 @@ function upsertConversation(list: Conversation[], next: Conversation) {
 
 export default function MessengerUI() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [listCalls,setListCalls]=useState<Call[]>([]);
   const [callRecords, setCallRecords] = useState<Call[]>([]);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -192,6 +193,8 @@ export default function MessengerUI() {
 
   const socket = useSocket();
   const [preview, setPreview] = useState<Message | null>(null);
+  const messageScrollRef = useRef<HTMLDivElement>(null);
+  const followLatestRef = useRef(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -511,10 +514,24 @@ export default function MessengerUI() {
     };
   }, [socket]);
 
+  useEffect(() => { followLatestRef.current = true; }, [activeChatId]);
   useEffect(() => {
-    const frame=requestAnimationFrame(()=>messagesEndRef.current?.scrollIntoView({ behavior: "instant", block: "end" }));
-    return()=>cancelAnimationFrame(frame);
-  }, [messages, isPartnerTyping, activeChatId, loadingMessages]);
+    const viewport = messageScrollRef.current;
+    const content = messagesEndRef.current?.parentElement;
+    if (!viewport || !content || loadingMessages || openingFriend) return;
+    const bottom = () => {
+      if (followLatestRef.current) viewport.scrollTop = viewport.scrollHeight;
+    };
+    const frame = requestAnimationFrame(bottom);
+    const observer = new ResizeObserver(bottom);
+    observer.observe(content);
+    viewport.addEventListener("load", bottom, true);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      viewport.removeEventListener("load", bottom, true);
+    };
+  }, [messages, callRecords, isPartnerTyping, activeChatId, loadingMessages, openingFriend]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setDraft(e.target.value);
@@ -647,6 +664,8 @@ export default function MessengerUI() {
     }
   };
 
+  const attachmentPreviews = useRef(new Set<string>());
+  useEffect(()=>()=>{attachmentPreviews.current.forEach(url=>URL.revokeObjectURL(url));attachmentPreviews.current.clear();},[]);
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !activeChatId || !currentUser) return;
@@ -657,14 +676,18 @@ export default function MessengerUI() {
     if (replyingTo?.id) formData.append("replyToId", replyingTo.id);
 
     const tempId = `temp-file-${Date.now()}`;
+    const previewUrl = URL.createObjectURL(file);
+    attachmentPreviews.current.add(previewUrl);
     setMessages((prev) => [
       ...prev,
       {
         id: tempId,
         conversationId: activeChatId,
         senderId: currentUser.id,
-        body: draft.trim() || file.name,
-        type: file.type.startsWith("image/") ? "IMAGE" : "DOCUMENT",
+        body: draft.trim(),
+        mediaUrl: previewUrl,
+        fileName: file.name,
+        type: file.type.startsWith("image/") ? "IMAGE" : file.type.startsWith("video/") ? "VIDEO" : file.type.startsWith("audio/") ? "AUDIO" : "DOCUMENT",
         createdAt: new Date().toISOString(),
         pending: true,
         readBy: []
@@ -675,6 +698,8 @@ export default function MessengerUI() {
     try {
       const saved = await sendAttachment(activeChatId, formData);
       appendConfirmed(tempId, saved);
+      URL.revokeObjectURL(previewUrl);
+      attachmentPreviews.current.delete(previewUrl);
       setDraft("");
       setReplyingTo(null);
     } catch (err) {
@@ -762,6 +787,21 @@ export default function MessengerUI() {
     }
   };
 
+  useEffect(()=>{
+    if(!currentUser?.id)return;
+    let cancelled=false;
+    const refresh=()=>{void callApi<{items:Call[]}>("").then(data=>{if(!cancelled)setListCalls(data.items);}).catch(()=>{});};
+    refresh();
+    const updated=(item:Call)=>setListCalls(prev=>[item,...prev.filter(c=>c.id!==item.id)]);
+    socket?.on("call_updated",updated);
+    socket?.on("connect",refresh);
+    return()=>{cancelled=true;socket?.off("call_updated",updated);socket?.off("connect",refresh);};
+  },[currentUser?.id,socket]);
+  const latestChatCall=(chat:Conversation)=>{
+    if(chat.type==="GROUP")return undefined;
+    const peer=getChatPartner(chat,currentUser?.id)?.id;
+    return listCalls.filter(c=>((c.callerId===currentUser?.id&&c.calleeId===peer)||(c.calleeId===currentUser?.id&&c.callerId===peer))).sort((a,b)=>new Date(b.endedAt||b.startedAt).getTime()-new Date(a.endedAt||a.startedAt).getTime())[0];
+  };
   const visibleConversations = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return conversations;
@@ -887,7 +927,13 @@ export default function MessengerUI() {
               const name = conversationTitle(chat, currentUser?.id);
               const isUserOnline = partner ? onlineUsers.has(partner.id) : false;
               const latest = chat.messages?.[0];
+              const call = latestChatCall(chat);
+              const callTime = call?.endedAt || call?.startedAt;
+              const callIsLatest = !!callTime && new Date(callTime).getTime() > new Date(latest?.createdAt || 0).getTime();
               const unread = chat.unreadCount || 0;
+              const sentByMe = latest?.senderId === currentUser?.id;
+              const seenAt = latest ? chat.members.filter(member=>member.userId!==currentUser?.id && member.lastReadAt && new Date(member.lastReadAt).getTime()>=new Date(latest.createdAt).getTime()).map(member=>member.lastReadAt!).sort()[0] : undefined;
+
               const selected = activeChatId === chat.id;
 
               return (
@@ -913,7 +959,7 @@ export default function MessengerUI() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <p className="text-[14px] leading-5 text-[#0B1C30] font-semibold truncate">{name}</p>
-                      <span className="shrink-0 ml-2 text-[11px] text-[#6B7280]">{formatChatTime(latest?.createdAt)}</span>
+                      <span className="shrink-0 ml-2 text-[11px] text-[#6B7280]">{formatChatTime(callIsLatest ? callTime : latest?.createdAt)}</span>
                     </div>
                     <div className="flex items-center justify-between mt-0.5 gap-2">
                       <p
@@ -921,7 +967,7 @@ export default function MessengerUI() {
                           unread > 0 ? "text-[#0B1C30] font-semibold" : "text-[#3C494A]"
                         }`}
                       >
-                        {messagePreview(latest)}
+                        {unread >= 4 ? "4+ new messages" : unread >= 2 ? unread+" new messages" : callIsLatest ? ((call?.status==="MISSED"?"Missed ":"")+(call?.type==="VIDEO"?"Video call":"Audio call")) : sentByMe ? (latest?.pending ? "Sending…" : latest?.failed ? "Failed to send" : seenAt ? "Seen · "+formatClock(seenAt) : "Sent") : messagePreview(latest)}
                       </p>
                       {unread > 0 && (
                         <span className="unread-pulse bg-[#00696F] text-white text-[11px] font-bold px-2 py-0.5 rounded-full">
@@ -988,7 +1034,7 @@ export default function MessengerUI() {
               </div>
             </header>
 
-            <div className="flex-1 overflow-y-auto no-scrollbar bg-[#F8F9FF] px-4 py-6 flex flex-col gap-4">
+            <div ref={messageScrollRef} onScroll={event=>{const el=event.currentTarget;followLatestRef.current=el.scrollHeight-el.scrollTop-el.clientHeight<80;}} className="min-h-0 flex-1 overflow-y-auto no-scrollbar bg-[#F8F9FF] px-4 py-6 [overflow-anchor:none]"><div className="flex min-h-full flex-col gap-4 [&>*]:shrink-0">
               {openingFriend || loadingMessages ? (
                 <ChatMessagesSkeleton/>
               ) : messages.length === 0 ? (
@@ -1218,6 +1264,7 @@ export default function MessengerUI() {
               )}
 
               <div ref={messagesEndRef} />
+            </div>
             </div>
 
             {replyingTo && (
