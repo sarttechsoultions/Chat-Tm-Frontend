@@ -86,18 +86,20 @@ function asLiker(user: ReturnType<typeof useCurrentUser>): PostAuthor | null {
   };
 }
 
-function PostMediaGrid({ media, onVideoOpen }: { media: PostItem["media"]; onVideoOpen: () => void }) {
+function PostMediaGrid({ media, onVideoOpen, compact=false }: { media: PostItem["media"]; onVideoOpen: () => void; compact?:boolean }) {
   if (!media.length) return null;
 
-  return <MediaCarousel items={media} aspect={1} onVideoOpen={onVideoOpen} />;
+  return <MediaCarousel items={media} aspect={compact ? 4/3 : 1} onVideoOpen={onVideoOpen} />;
 }
 
 export default function PostCard({
   post: initialPost,
+  compactMedia = false,
   onDeleted,
   initiallyShowComments = false,
 }: {
   post: PostItem;
+  compactMedia?: boolean;
   initiallyShowComments?: boolean;
   onDeleted?: (id: string) => void;
   onUpdated?: (post: PostItem) => void;
@@ -436,7 +438,7 @@ export default function PostCard({
         </p>
       ) : null}
 
-      {post.media.length ? <PostMediaGrid media={post.media} onVideoOpen={() => router.push(`/watch?reel=${post.id}`)} /> : null}
+      {post.media.length ? <PostMediaGrid compact={compactMedia} media={post.media} onVideoOpen={() => router.push(`/watch?reel=${post.id}`)} /> : null}
 
       <div className="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar border-b border-[#F3F4F6] py-2">
         <div className="flex min-h-5 items-center gap-1">

@@ -258,6 +258,14 @@ export function listFriendSuggestions() {
   return apiRequest<{ items: FriendUser[] }>("/api/v1/friends/suggestions");
 }
 
+export function dismissFriendSuggestion(userId: string) {
+  return apiRequest<null>(`/api/v1/friends/suggestions/${userId}`, { method: "DELETE" });
+}
+
+export function listMutualFriends(userId: string) {
+  return apiRequest<{ items: FriendUser[] }>(`/api/v1/friends/mutual/${userId}`);
+}
+
 export function sendFriendRequest(userId: string) {
   return apiRequest<{ request: { id: string; status: string; user: FriendUser } }>(
     `/api/v1/friends/requests/${userId}`,
@@ -276,3 +284,5 @@ export function deleteFriendRequest(requestId: string) {
 export function unfriend(userId: string) {
   return apiRequest<null>(`/api/v1/friends/${userId}`, { method: "DELETE" });
 }
+
+export function listSentFriendRequests(){return apiRequest<{items:FriendRequest[]}>("/api/v1/friends/requests/sent");}

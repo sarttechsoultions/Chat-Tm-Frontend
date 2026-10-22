@@ -332,6 +332,7 @@ export default function MessengerUI() {
     };
   }, [activeChatId, socket]);
 
+  const processedIncoming = useRef(new Set<string>());
   // Real-time events
   useEffect(() => {
     if (!socket) return;
@@ -339,6 +340,9 @@ export default function MessengerUI() {
     const applyIncoming = (payload: unknown) => {
       const msg = extractIncomingMessage(payload);
       if (!msg?.id || !msg.conversationId) return;
+      if(processedIncoming.current.has(msg.id))return;
+      processedIncoming.current.add(msg.id);
+      if(processedIncoming.current.size>1000)processedIncoming.current.delete(processedIncoming.current.values().next().value!);
 
       const openId = activeChatIdRef.current;
       const me = currentUserIdRef.current;
@@ -477,6 +481,7 @@ export default function MessengerUI() {
     };
 
     const onConnect = () => {
+      fetchConversations().then(setConversations).catch(()=>undefined);
       socket.emit("get_online_users");
       if (activeChatIdRef.current) {
         socket.emit("join_conversation", activeChatIdRef.current);

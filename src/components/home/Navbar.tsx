@@ -1,10 +1,12 @@
 "use client";
+import useFriendRequestCount from "../hooks/useFriendRequestCount";
 
 import React from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Search, X } from "lucide-react";
+import SearchPanel from "./SearchPanel";
 import FigmaIcon from "./FigmaIcon";
 import { UserAvatar } from "../ui/UserAvatar";
 import { useAppShell } from "./AppShellContext";
@@ -35,8 +37,16 @@ function formatUnread(count: number) {
 }
 
 export default function Navbar() {
+  const friendRequests=useFriendRequestCount();
   const pathname = usePathname();
+  const router=useRouter();
   const { searchOpen, toggleSearch, closeSearch } = useAppShell();
+  const [searchQuery,setSearchQuery]=React.useState("");
+  React.useEffect(()=>{setSearchQuery("");},[pathname]);
+  React.useEffect(()=>{if(!searchOpen)setSearchQuery("");},[searchOpen]);
+  const searchBox=React.useRef<HTMLDivElement>(null);
+  React.useEffect(()=>{if(!searchOpen)return;const outside=(event:PointerEvent)=>{if(!searchBox.current?.contains(event.target as Node))closeSearch();};document.addEventListener("pointerdown",outside);return()=>document.removeEventListener("pointerdown",outside);},[searchOpen,closeSearch]);
+
   const socket = useSocket();
   const currentUser = useCurrentUser();
   const user = currentUser
@@ -98,13 +108,18 @@ export default function Navbar() {
             />
           </Link>
 
-          <div className="hidden h-9 w-[180px] shrink-0 items-center gap-2 rounded-[8px] bg-[#F3F4F6] px-3 sm:flex lg:w-[220px]">
+          <div ref={searchBox} className="relative hidden h-9 w-[180px] shrink-0 items-center gap-2 rounded-[8px] bg-[#F3F4F6] px-3 sm:flex lg:w-[220px]">
             <FigmaIcon src="/figma/icons/search.svg" alt="" width={13} height={12} />
             <input
               type="text"
               placeholder="Search ChatTm"
+              value={searchQuery}
+              onChange={event=>{setSearchQuery(event.target.value);if(!searchOpen)toggleSearch();}}
+              onFocus={()=>{if(window.innerWidth>=768){if(!searchOpen)toggleSearch();}else router.push("/search");}}
+              onKeyDown={event=>{if(event.key==="Escape")closeSearch();}}
               className="w-full border-none bg-transparent text-[12px] text-[#3C494A] placeholder-[#3C494A] focus:outline-none lg:text-[14px]"
             />
+            {searchOpen && <div role="region" aria-label="Search results" className="absolute left-0 top-[calc(100%+12px)] z-[70] hidden max-h-[70dvh] w-[340px] overflow-y-auto rounded-xl border border-gray-100 bg-white shadow-xl md:block"><SearchPanel hideInput externalQuery={searchQuery} onQueryChange={setSearchQuery} onClose={closeSearch}/></div>}
           </div>
         </div>
 
@@ -115,9 +130,9 @@ export default function Navbar() {
               <Link
                 key={label}
                 href={href}
-                aria-label={label}
+                aria-label={href==="/friends"&&friendRequests ? label+", "+friendRequests+" pending requests" : label}
                 aria-current={active ? "page" : undefined}
-                className="flex items-center justify-center h-full"
+                className="relative flex items-center justify-center h-full"
               >
                 <span
                   className="relative size-[20px] overflow-clip shrink-0"
@@ -133,6 +148,7 @@ export default function Navbar() {
                     maskSize: "contain",
                   }}
                 />
+                {href==="/friends"&&friendRequests>0&&<span className="absolute -right-3 top-1 min-w-4 rounded-full bg-[#ED4956] px-1 text-center text-[10px] font-bold leading-4 text-white">{friendRequests>99?"99+":friendRequests}</span>}
               </Link>
             );
           })}
@@ -142,7 +158,7 @@ export default function Navbar() {
           <button
             type="button"
             aria-label={searchOpen ? "Close search" : "Search"}
-            onClick={toggleSearch}
+            onClick={()=>{closeSearch();router.push("/search");}}
             className="flex size-8 items-center justify-center rounded-full hover:bg-[#F3F4F6] sm:hidden"
           >
             {searchOpen ? <X className="size-[18px] text-[#0B1C30]" /> : <Search className="size-5 text-[#0B1C30]" />}
@@ -167,22 +183,8 @@ export default function Navbar() {
           </Link>
         </div>
       </div>
-      {searchOpen ? (
-        <div className="border-t border-[#E5E7EB] px-3 py-2 sm:hidden">
-          <label className="flex h-10 items-center gap-2 rounded-[10px] bg-[#F3F4F6] px-3">
-            <Search className="size-4 shrink-0 text-[#6B7280]" />
-            <input
-              autoFocus
-              type="search"
-              placeholder="Search ChatTm"
-              onKeyDown={(event) => {
-                if (event.key === "Escape") closeSearch();
-              }}
-              className="w-full bg-transparent text-[14px] text-[#0B1C30] placeholder-[#6B7280] outline-none"
-            />
-          </label>
-        </div>
-      ) : null}
+
+
     </header>
   );
 }
