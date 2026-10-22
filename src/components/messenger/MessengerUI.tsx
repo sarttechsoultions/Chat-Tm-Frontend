@@ -198,7 +198,7 @@ export default function MessengerUI() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const draftInputRef = useRef<HTMLInputElement>(null);
+  const draftInputRef = useRef<HTMLTextAreaElement>(null);
   const activeChatIdRef = useRef<string | null>(null);
   const currentUserIdRef = useRef<string | null>(null);
 
@@ -533,7 +533,7 @@ export default function MessengerUI() {
     };
   }, [messages, callRecords, isPartnerTyping, activeChatId, loadingMessages, openingFriend]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setDraft(e.target.value);
     if (!socket || !activeChatId) return;
 
@@ -1295,6 +1295,7 @@ export default function MessengerUI() {
             )}
 
             <form
+              autoComplete="off"
               className="shrink-0 flex items-center gap-1.5 px-3 pt-3 border-t border-[#D3E4FE] bg-white pb-[max(0.75rem,env(safe-area-inset-bottom))]"
               onSubmit={handleSend}
             >
@@ -1321,18 +1322,21 @@ export default function MessengerUI() {
               </button>
 
               <div className="relative flex-1 min-w-0">
-                <input
+                <textarea
                   ref={draftInputRef}
-                  type="text"
+                  rows={1}
+                  aria-label="Chat message"
                   autoComplete="off"
-                  name="chat-message"
+                  autoCorrect="on"
+                  spellCheck={true}
                   enterKeyHint="send"
                   data-form-type="other"
                   value={draft}
                   onChange={handleInputChange}
+                  onKeyDown={event=>{if(event.key==="Enter"&&!event.shiftKey&&!event.nativeEvent.isComposing){event.preventDefault();event.currentTarget.form?.requestSubmit();}}}
                   placeholder={isUploading ? "Uploading file..." : `Message ${activeName}...`}
                   disabled={isUploading}
-                  className="w-full rounded-full bg-[#EFF4FF] pl-4 pr-11 py-[10px] text-[15px] text-[#0B1C30] placeholder:text-[#6B7280] outline-none"
+                  className="block resize-none w-full rounded-full bg-[#EFF4FF] pl-4 pr-11 py-[10px] text-[15px] text-[#0B1C30] placeholder:text-[#6B7280] outline-none"
                 />
                 <button
                   type="button"
