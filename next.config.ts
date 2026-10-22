@@ -4,8 +4,10 @@ const API_ORIGIN =
   process.env.API_ORIGIN || "http://localhost:5000";
 
 const nextConfig: NextConfig = {
+  env: { NEXT_PUBLIC_SOCKET_ORIGIN: process.env.NEXT_PUBLIC_SOCKET_URL || API_ORIGIN },
   async rewrites() {
     return [
+      { source: "/socket.io/:path*", destination: `${API_ORIGIN}/socket.io/:path*` },
       {
         source: "/api/:path*",
         destination: `${API_ORIGIN}/api/:path*`,
