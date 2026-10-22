@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { IAgoraRTCClient, ILocalAudioTrack, ICameraVideoTrack, ILocalVideoTrack } from "agora-rtc-sdk-ng";
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Phone, Volume2, VolumeX, SwitchCamera } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Phone, SwitchCamera } from "lucide-react";
 import { callApi, type Call } from "../../lib/api/calls";
 import { useSocket } from "../hooks/useSocket";
 import { useCurrentUser } from "../hooks/useCurrentUser";
@@ -13,31 +13,6 @@ function LiveCall({call,onEnd}:{call:Call;onEnd:()=>void}) {
  const [localTrack,setLocalTrack]=useState<ILocalVideoTrack|null>(null);const remote=useRef<HTMLDivElement>(null);const mic=useRef<ILocalAudioTrack|null>(null);const camera=useRef<ICameraVideoTrack|null>(null);const client=useRef<IAgoraRTCClient|null>(null);
  const [remoteVideo,setRemoteVideo]=useState(false);
  const [micAvailable,setMicAvailable]=useState(true);
- const [outputNotice,setOutputNotice]=useState("");
- const outputId=useRef<string|null>(null);
- const [speakerOn,setSpeakerOn]=useState<boolean|null>(null);
- const [switchingOutput,setSwitchingOutput]=useState(false);
- const outputBusy=useRef(false);
- const isEarpiece=(label:string)=>/earpiece|receiver|ear speaker/i.test(label);
- const isSpeaker=(label:string)=>/speaker|loudspeaker/i.test(label)&&!isEarpiece(label);
- const chooseOutput=async()=>{
-   if(outputBusy.current)return;
-   outputBusy.current=true;setSwitchingOutput(true);
-   const devices=navigator.mediaDevices as MediaDevices & {selectAudioOutput?:()=>Promise<MediaDeviceInfo>};
-   try{
-     const outputs=(await devices.enumerateDevices()).filter(d=>d.kind==="audiooutput");
-     const target=speakerOn===true?outputs.find(d=>isEarpiece(d.label)):outputs.find(d=>isSpeaker(d.label));
-     const output=target || (devices.selectAudioOutput?await devices.selectAudioOutput():null);
-     if(!output){setOutputNotice("Your browser does not expose earpiece/speaker switching. Use your phone’s audio controls.");return;}
-     const tracks=(client.current?.remoteUsers||[]).flatMap(user=>user.audioTrack?[user.audioTrack]:[]);
-     if(!tracks.length){setOutputNotice("Audio is not connected yet. Try again when the other person joins.");return;}
-     await Promise.all(tracks.map(track=>track.setPlaybackDevice(output.deviceId)));
-     outputId.current=output.deviceId;
-     setSpeakerOn(isSpeaker(output.label)?true:isEarpiece(output.label)?false:null);
-     setOutputNotice("Audio output: "+(output.label||"Selected device"));
-   }catch{setOutputNotice("Could not change audio output. Your current output is unchanged.");}
-   finally{outputBusy.current=false;setSwitchingOutput(false);}
- };
  const [previewVersion,setPreviewVersion]=useState(0);
  const [flipping,setFlipping]=useState(false);
  const flipGuard=useRef(false);
@@ -58,21 +33,7 @@ function LiveCall({call,onEnd}:{call:Call;onEnd:()=>void}) {
  useEffect(()=>{let disposed=false;let rtc:IAgoraRTCClient|undefined;const tracks:(ILocalAudioTrack|ILocalVideoTrack)[]=[];
  const cleanup=async()=>{tracks.forEach(t=>{t.stop();t.close();});rtc?.removeAllListeners();await rtc?.leave();};
  void(async()=>{try{setError("");setConnected(false);const devices=await checkCallDevices(call.type==="VIDEO");if(disposed)return;setMicAvailable(devices.microphone);setMuted(!devices.microphone);const Agora=(await import('agora-rtc-sdk-ng')).default;if(disposed)return;rtc=Agora.createClient({mode:'rtc',codec:'vp8'});client.current=rtc;
- rtc.on('user-published',async(user,kind)=>{try{await rtc!.subscribe(user,kind);if(disposed)return;if(kind==='video'&&remote.current){user.videoTrack?.play(remote.current, { fit: "cover" });setRemoteVideo(true);}if(kind==='audio'&&user.audioTrack){
-   const audio=user.audioTrack;
-   try{
-     let id=outputId.current;
-     if(!id){
-       const outputs=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==="audiooutput");
-       const preferred=outputs.find(d=>call.type==="AUDIO"?isEarpiece(d.label):isSpeaker(d.label));
-       if(preferred)id=preferred.deviceId;
-     }
-     if(id){await audio.setPlaybackDevice(id);if(!disposed){outputId.current=id;const outputs=await navigator.mediaDevices.enumerateDevices();const label=outputs.find(d=>d.deviceId===id)?.label||"";setSpeakerOn(isSpeaker(label)?true:isEarpiece(label)?false:null);}}
-     else if(!disposed&&call.type==="AUDIO")setOutputNotice("Earpiece selection is unavailable in this browser. Using your phone’s default audio output.");
-   }catch{if(!disposed)setOutputNotice("Using your phone’s default audio output.");}
-   if(disposed)return;
-   audio.play();
- }setConnected(true);}catch{if(!disposed)setError('Unable to receive remote media');}});
+ rtc.on('user-published',async(user,kind)=>{try{await rtc!.subscribe(user,kind);if(disposed)return;if(kind==='video'&&remote.current){user.videoTrack?.play(remote.current, { fit: "cover" });setRemoteVideo(true);}if(kind==='audio')user.audioTrack?.play();setConnected(true);}catch{if(!disposed)setError('Unable to receive remote media');}});
  rtc.on('user-unpublished',(_user,kind)=>{if(kind==='video')setRemoteVideo(false);});
  rtc.on('user-left',()=>setRemoteVideo(false));
  rtc.on('token-privilege-will-expire',()=>{void callApi<{token:string}>('/'+call.id+'/token',{}).then(t=>rtc?.renewToken(t.token)).catch(()=>setError('Unable to renew call access. End and call again.'));});
@@ -84,7 +45,7 @@ function LiveCall({call,onEnd}:{call:Call;onEnd:()=>void}) {
  await rtc.publish(tracks);if(disposed){await cleanup();return;}setConnected(true);
  }catch(e){if(!disposed){setConnected(false);setError(e instanceof Error?e.message:'Camera or microphone permission failed');await cleanup();}}})();return()=>{disposed=true;void cleanup();};},[call.id,call.type,retry]);
  useEffect(()=>{const timer=setInterval(()=>setSeconds(Math.max(0,Math.floor((Date.now()-new Date(call.startedAt).getTime())/1000))),1000);return()=>clearInterval(timer);},[call.startedAt]);
- return <><p className="relative z-20 mt-1 shrink-0 rounded-full bg-black/30 px-3 py-1 text-xs tabular-nums text-white/80">{connected?`${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`:error?'Device setup needed':'Connecting…'}</p>{call.type==='VIDEO'&&!error&&<div className="absolute inset-0 z-0 overflow-hidden bg-[#0b141a] [&_video]:object-cover"><div ref={remote} className="size-full"/>{!remoteVideo&&<div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-[#174b50] via-[#102c33] to-[#0b141a]"><img src="/ChatTmLogo.png" alt="ChatTm" className="w-28 object-contain"/><p className="text-sm text-white/60">Waiting for camera</p></div>}<div className="pointer-events-none absolute inset-x-2 bottom-36 top-3 sm:inset-x-5 sm:top-5 sm:bottom-36 [&>div]:pointer-events-auto"><CameraPreview><LocalCameraVideo track={localTrack} off={off} revision={previewVersion}/></CameraPreview></div></div>}{error&&<div role="alert" className="relative z-20 my-auto max-h-[40dvh] max-w-lg overflow-y-auto px-4 py-5 text-sm text-red-300"><p>{error}</p><button onClick={()=>setRetry(value=>value+1)} className="mt-3 rounded-full bg-white/15 px-5 py-2 text-white">Retry devices</button></div>}{!micAvailable&&<p role="status" className="absolute bottom-32 left-1/2 z-20 mb-2 w-max max-w-[95%] -translate-x-1/2 rounded-full bg-black/40 px-3 py-1.5 text-[11px] text-white/80">Camera-only · Your microphone is unavailable.</p>}<div className="relative z-20 mt-auto mb-6 flex shrink-0 items-center justify-center gap-7 rounded-full bg-gradient-to-t from-black/30 to-transparent px-5 py-4 sm:gap-8"><button style={{order:3}} disabled={!connected || !!error || !micAvailable} title={!micAvailable ? "Microphone unavailable" : undefined} aria-label={muted?'Unmute':'Mute'} onClick={async()=>{try{await mic.current?.setEnabled(muted);setMuted(!muted);}catch{setError('Unable to change microphone');}}} className="flex size-12 items-center justify-center rounded-full bg-white text-[#111b21] shadow-lg transition hover:bg-white/80 disabled:opacity-40 sm:size-14">{muted?<MicOff/>:<Mic/>}</button>{call.type==='VIDEO'&&<button disabled={!connected || !!error} aria-label={off?'Turn camera on':'Turn camera off'} onClick={async()=>{try{await camera.current?.setEnabled(off);setOff(!off);}catch{setError('Unable to change camera');}}} style={{order:1}} className="flex size-14 items-center justify-center rounded-full bg-white text-[#111b21] shadow-lg">{off?<VideoOff/>:<Video/>}</button>}<button style={{order:2}} aria-label="End call" onClick={onEnd} className="flex size-12 items-center justify-center rounded-full bg-red-500 shadow-[0_4px_18px_rgba(239,68,68,.25)] transition hover:bg-red-600 sm:size-14"><PhoneOff/></button>{call.type==="AUDIO"&&<button style={{order:1}} disabled={switchingOutput} aria-pressed={speakerOn===null?undefined:speakerOn} aria-label={speakerOn===true?"Switch to earpiece":"Switch to loudspeaker"} onClick={()=>void chooseOutput()} className="flex size-14 items-center justify-center rounded-full bg-white text-[#111b21]">{speakerOn===false?<VolumeX/>:<Volume2/>}</button>}</div><div className="absolute bottom-28 left-4 right-4 z-20 text-center">{call.type==="VIDEO"&&<button disabled={!connected || off || flipping || !!error} onClick={()=>void flipCamera()} aria-label="Switch front and back camera" title="Flip camera" className="mr-2 inline-flex items-center gap-2 rounded-full bg-black/50 px-3 py-2 text-xs text-white disabled:opacity-40"><SwitchCamera size={18}/>{flipping?"Switching…":"Flip camera"}</button>}{cameraNotice&&<p role="status" className="mb-2 rounded-xl bg-black/70 p-2 text-xs">{cameraNotice}</p>}{call.type==="VIDEO"&&<button onClick={()=>void chooseOutput()} className="rounded-full bg-black/40 px-3 py-1 text-xs text-white/80" aria-label="Choose speaker or audio output"><Volume2 size={20}/></button>}{outputNotice&&<p role="status" className="mt-2 rounded-xl bg-black/70 p-2 text-xs">{outputNotice}</p>}</div></>;
+ return <><p className="relative z-20 mt-1 shrink-0 rounded-full bg-black/30 px-3 py-1 text-xs tabular-nums text-white/80">{connected?`${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`:error?'Device setup needed':'Connecting…'}</p>{call.type==='VIDEO'&&!error&&<div className="absolute inset-0 z-0 overflow-hidden bg-[#0b141a] [&_video]:object-cover"><div ref={remote} className="size-full"/>{!remoteVideo&&<div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-[#174b50] via-[#102c33] to-[#0b141a]"><img src="/ChatTmLogo.png" alt="ChatTm" className="w-28 object-contain"/><p className="text-sm text-white/60">Waiting for camera</p></div>}<div className="pointer-events-none absolute inset-x-2 bottom-36 top-3 sm:inset-x-5 sm:top-5 sm:bottom-36 [&>div]:pointer-events-auto"><CameraPreview><LocalCameraVideo track={localTrack} off={off} revision={previewVersion}/></CameraPreview></div></div>}{error&&<div role="alert" className="relative z-20 my-auto max-h-[40dvh] max-w-lg overflow-y-auto px-4 py-5 text-sm text-red-300"><p>{error}</p><button onClick={()=>setRetry(value=>value+1)} className="mt-3 rounded-full bg-white/15 px-5 py-2 text-white">Retry devices</button></div>}{!micAvailable&&<p role="status" className="absolute bottom-32 left-1/2 z-20 mb-2 w-max max-w-[95%] -translate-x-1/2 rounded-full bg-black/40 px-3 py-1.5 text-[11px] text-white/80">Camera-only · Your microphone is unavailable.</p>}<div className="relative z-20 mt-auto mb-6 flex shrink-0 items-center justify-center gap-4 rounded-full bg-gradient-to-t from-black/30 to-transparent px-5 py-4 sm:gap-8"><button style={{order:3}} disabled={!connected || !!error || !micAvailable} title={!micAvailable ? "Microphone unavailable" : undefined} aria-label={muted?'Unmute':'Mute'} onClick={async()=>{try{await mic.current?.setEnabled(muted);setMuted(!muted);}catch{setError('Unable to change microphone');}}} className="flex size-12 items-center justify-center rounded-full bg-white text-[#111b21] shadow-lg transition hover:bg-white/80 disabled:opacity-40 sm:size-14">{muted?<MicOff/>:<Mic/>}</button>{call.type==='VIDEO'&&<button disabled={!connected || !!error} aria-label={off?'Turn camera on':'Turn camera off'} onClick={async()=>{try{await camera.current?.setEnabled(off);setOff(!off);}catch{setError('Unable to change camera');}}} style={{order:1}} className="flex size-14 items-center justify-center rounded-full bg-white text-[#111b21] shadow-lg">{off?<VideoOff/>:<Video/>}</button>}<button style={{order:2}} aria-label="End call" onClick={onEnd} className="flex size-12 items-center justify-center rounded-full bg-red-500 shadow-[0_4px_18px_rgba(239,68,68,.25)] transition hover:bg-red-600 sm:size-14"><PhoneOff/></button>{call.type==="VIDEO"&&<button disabled={!connected || off || flipping || !!error} onClick={()=>void flipCamera()} aria-label="Switch front and back camera" title="Flip camera" style={{order:0}} className="flex size-12 shrink-0 items-center justify-center rounded-full bg-white text-[#111b21] disabled:opacity-40 sm:size-14"><SwitchCamera size={24}/></button>}</div><div className="absolute bottom-28 left-4 right-4 z-20 text-center">{cameraNotice&&<p role="status" className="mb-2 rounded-xl bg-black/70 p-2 text-xs">{cameraNotice}</p>}</div></>;
 }
 export default function CallManager(){const me=useCurrentUser();const socket=useSocket();const [call,setCall]=useState<Call|null>(null);const [error,setError]=useState("");const [busy,setBusy]=useState(false);const guard=useRef(false);
  useEffect(()=>{

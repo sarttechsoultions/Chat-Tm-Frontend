@@ -17,6 +17,20 @@ const AppShellContext = createContext<AppShellContextValue | null>(null);
 
 export function AppShellProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  React.useEffect(()=>{
+    const viewport=window.visualViewport;
+    const root=document.documentElement;
+    const sync=()=>{
+      const editing=document.activeElement?.matches("input,textarea,[contenteditable=true]");
+      const keyboard=!!editing && !!viewport && window.innerHeight-viewport.height>120;
+      root.toggleAttribute("data-keyboard-open",keyboard);
+      root.style.setProperty("--visible-height", (viewport?.height || window.innerHeight)+"px");
+    };
+    viewport?.addEventListener("resize",sync);
+    document.addEventListener("focusin",sync);document.addEventListener("focusout",sync);
+    sync();
+    return()=>{viewport?.removeEventListener("resize",sync);document.removeEventListener("focusin",sync);document.removeEventListener("focusout",sync);root.removeAttribute("data-keyboard-open");};
+  },[]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 

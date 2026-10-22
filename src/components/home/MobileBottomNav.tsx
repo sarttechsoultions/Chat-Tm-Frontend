@@ -61,7 +61,7 @@ export default function MobileBottomNav() {
   return (
     <nav
       aria-label="Mobile navigation"
-      className="fixed inset-x-0 bottom-0 z-[60] border-t border-[#E5E7EB] bg-white md:hidden"
+      className="mobile-bottom-nav fixed inset-x-0 bottom-0 z-[60] border-t border-[#E5E7EB] bg-white md:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <div className="grid h-[58px] grid-cols-5">

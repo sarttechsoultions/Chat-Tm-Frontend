@@ -48,7 +48,7 @@ export default function MainColumns({ children }: { children: React.ReactNode })
 
   if (isMessenger) {
     return (
-      <div className="mx-auto flex min-h-0 w-full max-w-[1440px] flex-1 overflow-hidden pb-[calc(58px+env(safe-area-inset-bottom))] md:pb-0 px-0 sm:px-4 lg:px-[85px]">
+      <div className="mx-auto flex min-h-0 w-full max-w-[1440px] flex-1 overflow-hidden messenger-mobile-space pb-[calc(58px+env(safe-area-inset-bottom))] md:pb-0 px-0 sm:px-4 lg:px-[85px]">
         <main className="h-full min-w-0 flex-1 overflow-hidden">{children}</main>
       </div>
     );
