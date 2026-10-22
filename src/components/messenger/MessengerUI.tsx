@@ -566,6 +566,7 @@ export default function MessengerUI() {
     e.preventDefault();
     if (!draft.trim() || !activeChatId || !currentUser) return;
 
+    followLatestRef.current = true;
     const body = draft.trim();
     const replyTargetId = replyingTo?.id;
     const tempId = `temp-${Date.now()}`;
@@ -1354,6 +1355,16 @@ export default function MessengerUI() {
                 type="submit"
                 disabled={isUploading || !draft.trim()}
                 aria-label="Send"
+                onPointerDown={event=>{
+                  if(event.isPrimary && event.button===0){
+                    event.preventDefault();
+                    event.currentTarget.form?.requestSubmit();
+                  }
+                }}
+                onClick={event=>{
+                  event.preventDefault();
+                  if(event.detail===0)event.currentTarget.form?.requestSubmit();
+                }}
                 className="send-pulse flex items-center justify-center rounded-full bg-[#00696F] p-2.5 text-white hover:bg-[#005a5f] disabled:opacity-50 transition"
               >
                 <FigmaIcon
