@@ -1,4 +1,5 @@
 "use client";
+import {useSocket} from "../hooks/useSocket";
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type InputHTMLAttributes, type ReactNode } from "react";
@@ -60,7 +61,14 @@ function persistUser(user: AuthUser) {
 export default function ProfileView({ username }: { username?: string }) {
   const router = useRouter();
   const [data, setData] = useState<ProfileData | null>(null);
+  const socket=useSocket();
+  const [selectedPostId,setSelectedPostId]=useState<string|null>(null);
   const [tab, setTab] = useState<Tab>("posts");
+  useEffect(()=>{
+    const sync=()=>{if(window.location.hash==="#friends")setTab("friends");};
+    sync();window.addEventListener("hashchange",sync);
+    return()=>window.removeEventListener("hashchange",sync);
+  },[]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [working, setWorking] = useState(false);
@@ -83,6 +91,13 @@ export default function ProfileView({ username }: { username?: string }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(()=>{
+    let cancelled=false;
+    const sync=()=>{void (username?fetchProfile(username):fetchMyProfile()).then(profile=>{if(!cancelled)setData(prev=>prev?{...prev,friendship:profile.friendship,stats:profile.stats,friends:profile.friends}:profile);}).catch(()=>{});};
+    socket?.on("friend_requests_changed",sync);
+    return()=>{cancelled=true;socket?.off("friend_requests_changed",sync);};
+  },[socket,username]);
 
   async function handleFriendAction() {
     if (!data || working) return;
@@ -119,6 +134,7 @@ export default function ProfileView({ username }: { username?: string }) {
     setWorking(true);
     try {
       await unfriend(data.user.id);
+      window.dispatchEvent(new Event("chattm:friends-changed"));
       setUnfriendOpen(false);
       setData({
         ...data,
@@ -145,7 +161,22 @@ export default function ProfileView({ username }: { username?: string }) {
   }
 
   if (loading) {
-    return <p className="py-16 text-center text-[14px] text-[#6B7280]">Loading profile…</p>;
+    return <div role="status" aria-label="Loading profile" aria-busy="true" className="mx-auto w-full max-w-[820px] space-y-5 pb-6">
+      <span className="sr-only">Loading profile…</span>
+      <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
+        <div className="h-40 bg-[#E5ECEF] motion-safe:animate-pulse sm:h-56"/>
+        <div className="px-5 pb-5">
+          <div className="-mt-12 size-24 rounded-full border-4 border-white bg-[#DCE6EA] motion-safe:animate-pulse sm:size-28"/>
+          <div className="mt-4 h-6 w-48 rounded bg-[#E5ECEF] motion-safe:animate-pulse"/>
+          <div className="mt-3 h-3 w-32 rounded bg-[#EEF2F5] motion-safe:animate-pulse"/>
+          <div className="mt-6 flex gap-5 border-t border-gray-100 pt-4">{Array.from({length:3},(_,i)=><div key={i} className="h-4 w-16 rounded bg-[#E5ECEF] motion-safe:animate-pulse"/>)}</div>
+        </div>
+      </div>
+      <div className="rounded-2xl bg-white p-5 shadow-sm">
+        <div className="mb-5 h-5 w-28 rounded bg-[#E5ECEF] motion-safe:animate-pulse"/>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{Array.from({length:6},(_,i)=><div key={i} className="rounded-xl border border-gray-100 p-4"><div className="mx-auto size-16 rounded-full bg-[#E5ECEF] motion-safe:animate-pulse"/><div className="mx-auto mt-4 h-4 w-3/4 rounded bg-[#E5ECEF] motion-safe:animate-pulse"/><div className="mx-auto mt-2 h-3 w-1/2 rounded bg-[#EEF2F5] motion-safe:animate-pulse"/></div>)}</div>
+      </div>
+    </div>;
   }
 
   if (!data) {
@@ -222,6 +253,7 @@ export default function ProfileView({ username }: { username?: string }) {
                       else void handleFriendAction();
                     }}
                   />
+                  {friendship.status==="PENDING_IN"&&<button disabled={working} onClick={async()=>{if(!friendship.requestId)return;setWorking(true);try{await deleteFriendRequest(friendship.requestId);setData(prev=>prev?{...prev,friendship:{status:"NONE",requestId:null}}:prev);window.dispatchEvent(new Event("chattm:friends-changed"));}catch(error){setError(error instanceof Error?error.message:"Unable to delete request");}finally{setWorking(false);}}} className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-semibold">Delete request</button>}
                   {friendship.status === "FRIENDS" ? (
                     <button
                       type="button"
@@ -266,38 +298,26 @@ export default function ProfileView({ username }: { username?: string }) {
         </div>
       </section>
 
+      {selectedPostId&&posts.find(post=>post.id===selectedPostId)&&<div role="dialog" aria-modal="true" aria-label="Post" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" onClick={()=>setSelectedPostId(null)}><div className="relative max-h-[90dvh] w-full max-w-[560px] overflow-y-auto rounded-2xl bg-white" onClick={e=>e.stopPropagation()}><button autoFocus aria-label="Close post" onClick={()=>setSelectedPostId(null)} className="sticky top-2 z-20 ml-auto mr-2 flex size-9 items-center justify-center rounded-full bg-white shadow"><X size={20}/></button><PostCard post={posts.find(post=>post.id===selectedPostId)!} compactMedia onDeleted={id=>{setData(prev=>prev?{...prev,posts:prev.posts.filter(post=>post.id!==id)}:prev);setSelectedPostId(null);}}/></div></div>}
       <div className="mt-5">
         {tab === "posts" ? (
-          <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {isOwn ? (
               <Link
                 href="/create-post"
-                className="rounded-[16px] bg-white px-4 py-4 text-[15px] text-[#6B7280] shadow-[0_1px_4px_rgba(0,0,0,0.08)]"
+                className="col-span-full rounded-[16px] bg-white px-4 py-4 text-[15px] text-[#6B7280] shadow-[0_1px_4px_rgba(0,0,0,0.08)]"
               >
                 What&apos;s on your mind, {user.firstName}?
               </Link>
             ) : null}
             {posts.length ? (
               posts.map((post) => (
-                <PostCard
-                  key={post.id}
-                  post={post}
-                  onDeleted={(id) =>
-                    setData((prev) =>
-                      prev ? { ...prev, posts: prev.posts.filter((item) => item.id !== id) } : prev
-                    )
-                  }
-                  onUpdated={(updated) =>
-                    setData((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            posts: prev.posts.map((item) => (item.id === updated.id ? updated : item)),
-                          }
-                        : prev
-                    )
-                  }
-                />
+                <button key={post.id} type="button" onClick={()=>setSelectedPostId(post.id)} aria-label={"Open post: "+(post.body||"Media post")} className="group relative aspect-square overflow-hidden rounded-xl bg-white text-left shadow-sm transition hover:shadow-md">
+                  {post.media[0] ? post.media[0].type==="video" ? <video src={post.media[0].url} preload="metadata" muted playsInline className="size-full object-cover"/> : <img src={post.media[0].url} alt={post.body||"Post"} loading="lazy" className="size-full object-cover transition group-hover:scale-105"/> : <div className="flex size-full items-center justify-center bg-gradient-to-br from-[#dceff0] to-[#edf3ff] p-4"><p className="line-clamp-5 text-sm font-medium text-[#0B1C30]">{post.body}</p></div>}
+                  {post.media[0]?.type==="video"&&<span className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-1 text-xs text-white">▶</span>}
+                  {post.media.length>1&&<span className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-1 text-xs text-white">{post.media.length} photos</span>}
+                  <span className="absolute inset-x-0 bottom-0 flex gap-3 bg-gradient-to-t from-black/70 to-transparent px-3 pb-2 pt-6 text-xs text-white">♡ {post.likesCount} <span>Comments {post.commentsCount}</span></span>
+                </button>
               ))
             ) : (
               <p className="rounded-[16px] bg-white py-10 text-center text-[14px] text-[#6B7280]">
@@ -326,12 +346,8 @@ export default function ProfileView({ username }: { username?: string }) {
         {tab === "friends" ? (
           <div className="rounded-[16px] bg-white p-6 shadow-[0_1px_4px_rgba(0,0,0,0.08)]">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-[18px] font-bold">Friends</h2>
-              {isOwn ? (
-                <Link href="/friends" className="text-[14px] font-semibold text-[#00696F]">
-                  See all
-                </Link>
-              ) : null}
+              <div><h2 className="text-[18px] font-bold">Friends <span className="ml-2 rounded-full bg-[#E8F4F3] px-2.5 py-1 text-xs font-semibold text-[#00696F]">{stats.friends}</span></h2><p className="mt-1 text-sm text-[#6B7280]">People connected with {isOwn ? "you" : user.firstName}</p></div>
+              
             </div>
             {friends.length ? (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -339,12 +355,9 @@ export default function ProfileView({ username }: { username?: string }) {
                   <Link
                     key={friend.id}
                     href={`/profile/${friend.username}`}
-                    className="rounded-[12px] bg-[#F9FAFB] p-3 text-center"
+                    className="group flex min-w-0 items-center gap-4 rounded-xl border border-[#E7ECEF] bg-white p-4 transition hover:border-[#9FC9CC] hover:bg-[#F5FAFA] hover:shadow-sm focus-visible:outline-2 focus-visible:outline-[#00696F]"
                   >
-                    <div className="mx-auto w-fit">
-                      <UserAvatar avatarUrl={friend.avatar} name={friendName(friend)} size={72} />
-                    </div>
-                    <p className="mt-2 truncate text-[13px] font-semibold">{friendName(friend)}</p>
+                    <div className="shrink-0"><UserAvatar avatarUrl={friend.avatar} name={friendName(friend)} size={64}/></div><div className="min-w-0 flex-1"><p className="truncate text-[15px] font-semibold text-[#0B1C30]">{friendName(friend)}</p><p className="mt-1 truncate text-[13px] text-[#6B7280]">@{friend.username}</p><span className="mt-2 block text-xs font-medium text-[#00696F]">View profile</span></div>
                   </Link>
                 ))}
               </div>

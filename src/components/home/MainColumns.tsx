@@ -7,6 +7,7 @@ import RightSidebar from "./RightSidebar";
 
 export default function MainColumns({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const isSearch=pathname==="/search";
   const isCreateStory = pathname === "/create-story";
   const isMessenger = pathname === "/messenger";
   const isCall = pathname.startsWith("/call");
@@ -16,9 +17,9 @@ export default function MainColumns({ children }: { children: React.ReactNode })
   const isFriends = pathname.startsWith("/friends");
   const isGroups = pathname.startsWith("/groups");
   const isProfile = pathname.startsWith("/profile");
-  const showLeftSidebar = !isCreateStory && !isMessenger && !isCall;
+  const showLeftSidebar = !isSearch && !isCreateStory && !isMessenger && !isCall;
   const showRightSidebar =
-    pathname !== "/create-post" &&
+    !isSearch && pathname !== "/create-post" &&
     !isCreateStory &&
     !isMessenger &&
     !isCall &&
@@ -63,7 +64,7 @@ export default function MainColumns({ children }: { children: React.ReactNode })
       ) : null}
 
       <main
-        className={`h-full min-w-0 flex-1 overflow-y-auto no-scrollbar ${mobilePad}`}
+        className={`h-full min-w-0 flex-1 overflow-y-auto no-scrollbar ${isFriends ? "pb-[calc(58px+env(safe-area-inset-bottom))] md:pb-2" : mobilePad}`}
       >
         {children}
       </main>

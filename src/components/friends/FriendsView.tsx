@@ -6,24 +6,28 @@ import {
   acceptFriendRequest,
   ApiError,
   deleteFriendRequest,
+  dismissFriendSuggestion,
   type FriendRequest,
   type FriendUser,
+  getStoredUser,
   listFriends,
+  listSentFriendRequests,
   listFriendSuggestions,
+  listMutualFriends,
   listReceivedFriendRequests,
   sendFriendRequest,
   unfriend,
 } from "../../lib/auth";
+import {useSocket} from "../hooks/useSocket";
 import { useRouter } from "next/navigation";
 import { UserAvatar } from "../ui/UserAvatar";
 import { createDirectConversation } from "../../lib/api/chat";
 
-type FriendTab = "all" | "online" | "requests" | "suggestions";
+type FriendTab = "sent" | "all" | "online" | "requests" | "suggestions";
 const tabs: { id: FriendTab; label: string; href: string }[] = [
-  { id: "all", label: "All Friends", href: "/friends" },
-  { id: "online", label: "Online Friends", href: "/friends/online" },
   { id: "requests", label: "Friend Requests", href: "/friends/requests" },
   { id: "suggestions", label: "Suggestions", href: "/friends/suggestions" },
+  { id: "sent", label: "Sent Requests", href: "/friends/sent" },
 ];
 
 const nameOf = (user: FriendUser) =>
@@ -83,6 +87,8 @@ function FriendGridSkeleton({ cards = 3 }: { cards?: number }) {
 
 export default function FriendsView({ tab }: { tab: FriendTab }) {
   const [friends, setFriends] = useState<FriendUser[]>([]);
+  const [showAllRequests,setShowAllRequests]=useState(false);
+  const [outgoing,setOutgoing]=useState<FriendRequest[]>([]);
   const [requests, setRequests] = useState<FriendRequest[]>([]);
   const [suggestions, setSuggestions] = useState<FriendUser[]>([]);
   const [sentRequests, setSentRequests] = useState<Record<string, string>>({});
@@ -92,18 +98,64 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [working, setWorking] = useState("");
+  const [mutualTarget, setMutualTarget] = useState<FriendUser | null>(null);
+  const [mutualPeople, setMutualPeople] = useState<FriendUser[]>([]);
+  const [mutualLoading, setMutualLoading] = useState(false);
 
   const router = useRouter();
+  const socket=useSocket();
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  const hiddenSuggestionKey=()=> "chattm:hidden-suggestions:"+(getStoredUser()?.id||"anonymous");
+  const hiddenSuggestions=():string[]=>{
+    try{const ids=JSON.parse(localStorage.getItem(hiddenSuggestionKey())||"[]");return Array.isArray(ids)?ids.filter((id):id is string=>typeof id==="string"):[];}catch{return [];}
+  };
+  const filterSuggestions=(items:FriendUser[])=>{
+    const hidden=new Set(hiddenSuggestions());
+    return items.filter(user=>!hidden.has(user.id));
+  };
+  const removeSuggestion=async(id:string)=>{
+    setWorking(id);
     setError("");
     try {
-      if (tab === "requests")
-        setRequests((await listReceivedFriendRequests()).items);
+      await dismissFriendSuggestion(id);
+      setSuggestions(prev=>prev.filter(user=>user.id!==id));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Unable to remove this suggestion.");
+    } finally {
+      setWorking("");
+    }
+  };
+
+  const showMutualFriends=async(user:FriendUser)=>{
+    setMutualTarget(user);
+    setMutualPeople([]);
+    setMutualLoading(true);
+    try {
+      const data=await listMutualFriends(user.id);
+      setMutualPeople(data.items);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Unable to load mutual friends.");
+      setMutualTarget(null);
+    } finally {
+      setMutualLoading(false);
+    }
+  };
+
+  const refresh = useCallback(async (silent=false) => {
+    if(!silent)setLoading(true);
+    setError("");
+    try {
+      const sent=await listSentFriendRequests();
+      setOutgoing(sent.items);
+      setSentRequests(Object.fromEntries(sent.items.map(row=>[row.user.id,row.id])));
+      if (tab === "requests") {
+        const [received,suggested]=await Promise.all([listReceivedFriendRequests(),listFriendSuggestions()]);
+        setRequests([...received.items].sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime()));
+        setSuggestions(filterSuggestions(suggested.items));
+      }
       else if (tab === "suggestions")
-        setSuggestions((await listFriendSuggestions()).items);
-      else setFriends((await listFriends()).items);
+        setSuggestions(filterSuggestions((await listFriendSuggestions()).items));
+      else if(tab!=="sent") setFriends((await listFriends()).items);
     } catch (err) {
       setError(
         err instanceof ApiError
@@ -111,7 +163,7 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
           : "Unable to load friends. Please try again."
       );
     } finally {
-      setLoading(false);
+      if(!silent)setLoading(false);
     }
   }, [tab]);
 
@@ -125,6 +177,12 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
     return () => window.clearTimeout(timeout);
   }, [refresh]);
 
+  useEffect(()=>{
+    const update=()=>{void refresh(true);};
+    socket?.on("friend_requests_changed",update);socket?.on("connect",update);
+    window.addEventListener("focus",update);
+    return()=>{socket?.off("friend_requests_changed",update);socket?.off("connect",update);window.removeEventListener("focus",update);};
+  },[socket,refresh]);
   const visibleFriends = useMemo(
     () =>
       (tab === "online" ? friends.filter((item) => item.isOnline) : friends).filter(
@@ -134,14 +192,14 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
   );
 
   const title =
-    tab === "requests"
+    tab === "sent" ? "Sent Requests" : tab === "requests"
       ? "Friend Requests"
       : tab === "suggestions"
       ? "Suggestions"
       : "Friends";
 
   const subtitle =
-    tab === "online"
+    tab === "sent" ? "Manage requests you have sent." : tab === "online"
       ? "See who's active and ready to chat."
       : tab === "requests"
       ? "Manage your pending connections."
@@ -154,8 +212,10 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
     setError("");
     try {
       await job();
+      setRequests(prev=>prev.filter(request=>request.id!==id));
       setNotice(success);
-      await refresh();
+      window.dispatchEvent(new Event("chattm:friends-changed"));
+      await refresh(true);
     } catch (err) {
       setError(
         err instanceof ApiError ? err.message : "Unable to complete this action."
@@ -173,6 +233,7 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
       const requestId = data?.request?.id;
       if (requestId) {
         setSentRequests((prev) => ({ ...prev, [user.id]: requestId }));
+        setOutgoing(prev=>[{id:requestId,createdAt:new Date().toISOString(),user},...prev.filter(row=>row.user.id!==user.id)]);
       }
       setNotice(`Friend request sent to ${nameOf(user)}.`);
     } catch (err) {
@@ -196,6 +257,7 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
         delete next[user.id];
         return next;
       });
+      setOutgoing(prev=>prev.filter(row=>row.id!==requestId));
       setNotice("Friend request cancelled.");
     } catch (err) {
       setError(
@@ -233,8 +295,8 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
   }
 
   return (
-    <section className="mx-auto w-full max-w-[906px] rounded-[12px] bg-[#F9FAFB] px-3 pb-8 pt-[10px] shadow-[0_0_4px_rgba(0,0,0,0.25)] sm:px-8">
-      <header className="border-b border-[#E5E7EB]">
+    <section className="mx-auto w-full max-w-[906px] min-h-full rounded-[12px] bg-[#F9FAFB] px-3 pb-8 pt-[10px] shadow-[0_0_4px_rgba(0,0,0,0.25)] sm:px-8">
+      <header className="sticky -top-2.5 z-20 -mx-3 border-b border-[#E5E7EB] bg-[#F9FAFB] px-3 pt-2.5 sm:-mx-8 sm:px-8">
         <h1 className="text-[22px] font-bold leading-8 text-[#111827] sm:text-[24px]">
           {title}
         </h1>
@@ -296,23 +358,26 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
             <FriendGridSkeleton />
           ) : requests.length ? (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {requests.map(({ id, user }) => (
+              {(showAllRequests?requests:requests.slice(0,3)).map(({ id, user, createdAt }) => (
                 <article
                   key={id}
                   className="rounded-[12px] bg-white p-4 shadow-[0_0_4px_rgba(0,0,0,0.14)]"
                 >
                   <div className="flex items-center gap-3">
+                    <Link href={`/profile/${encodeURIComponent(user.username)}`} aria-label={`View ${nameOf(user)} profile`} className="shrink-0 rounded-lg hover:opacity-80">
                     <UserAvatar
                       avatarUrl={user.avatar}
                       name={nameOf(user)}
                       size="size-16"
                       isOnline={user.isOnline}
                     />
+                    </Link>
                     <div>
-                      <h3 className="font-bold">{nameOf(user)}</h3>
-                      <p className="text-[12px] text-[#3C494A]">
+                      <Link href={`/profile/${encodeURIComponent(user.username)}`} className="block truncate text-sm font-semibold hover:underline sm:text-base">{nameOf(user)}</Link>
+                      <button type="button" disabled={!user.mutualFriends} onClick={()=>void showMutualFriends(user)} className="text-left text-[12px] text-[#3C494A] enabled:hover:underline disabled:cursor-default">
                         {user.mutualFriends} mutual friends
-                      </p>
+                      </button>
+                      <p className="mt-1 text-[11px] text-gray-500">{new Date(createdAt).toLocaleString([], {month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</p>
                     </div>
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-2">
@@ -351,10 +416,13 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
           ) : (
             <State loading={false} message="No pending friend requests." />
           )}
+          {requests.length>3&&<button type="button" onClick={()=>setShowAllRequests(value=>!value)} className="mt-5 w-full rounded-lg bg-[#E8F4F3] px-4 py-3 text-sm font-semibold text-[#00696F]">{showAllRequests?"Show less":"View all ("+requests.length+")"}</button>}
         </div>
       ) : null}
 
-      {tab === "suggestions" ? (
+      {tab==="sent"&&<div className="mt-6"><h2 className="mb-4 text-lg font-bold">Sent Requests ({outgoing.length})</h2>{outgoing.map(row=><div key={row.id} className="mb-2 flex items-center gap-3 rounded-xl bg-white p-4"><Link href={"/profile/"+row.user.username} className="flex flex-1 items-center gap-3"><UserAvatar avatarUrl={row.user.avatar} name={nameOf(row.user)} size={44}/><span>{nameOf(row.user)}</span></Link><button disabled={working===row.user.id} onClick={()=>void handleCancelRequest(row.user)} className="rounded-lg bg-gray-100 px-3 py-2 text-sm">Cancel request</button></div>)}</div>}
+      {tab==="sent"&&(loading?<FriendListSkeleton/>:outgoing.length===0?<State loading={false} message="No pending sent requests."/>:null)}
+      {tab === "suggestions" || tab === "requests" ? (
         <div className="mt-6">
           <h2 className="mb-4 text-[18px] font-bold">People You May Know</h2>
           {loading ? (
@@ -367,21 +435,21 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
                 return (
                   <article
                     key={user.id}
-                    className="rounded-[12px] bg-white p-[17px] text-center shadow-[0_0_4px_rgba(0,0,0,0.25)]"
+                    className="grid grid-cols-[76px_minmax(0,1fr)] items-center gap-x-3 bg-white py-3 text-left sm:block sm:rounded-xl sm:p-[17px] sm:text-center sm:shadow-sm"
                   >
-                    <div className="mx-auto mb-3 w-fit">
+                    <div className="row-span-3 w-fit self-center sm:mx-auto sm:mb-3">
                       <UserAvatar
                         avatarUrl={user.avatar}
                         name={nameOf(user)}
-                        size="size-24"
+                        size="size-[76px] sm:size-24"
                         isOnline={user.isOnline}
                       />
                     </div>
                     <h3 className="font-bold">{nameOf(user)}</h3>
-                    <p className="text-[12px] text-[#3C494A]">
+                    <button type="button" disabled={!user.mutualFriends} onClick={()=>void showMutualFriends(user)} className="text-left text-[12px] text-[#3C494A] enabled:hover:underline disabled:cursor-default sm:text-center">
                       {user.mutualFriends} mutual friends
-                    </p>
-                    <button
+                    </button>
+                    <div className="mt-2 flex gap-2 sm:mt-4"><button
                       type="button"
                       disabled={working === user.id}
                       onClick={() =>
@@ -389,7 +457,7 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
                           ? void handleCancelRequest(user)
                           : void handleSendRequest(user)
                       }
-                      className={`mt-4 w-full rounded-[8px] py-2 text-[14px] font-bold disabled:opacity-60 ${
+                      className={`w-full rounded-[8px] py-2 text-[14px] font-bold disabled:opacity-60 ${
                         sent
                           ? "bg-[#F3F4F6] text-[#4B5563]"
                           : "bg-[rgba(0,105,111,0.1)] text-[#00696F]"
@@ -402,7 +470,7 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
                         : sent
                           ? "Request Sent"
                           : "Add Friend"}
-                    </button>
+                    </button><button type="button" disabled={working===user.id} onClick={()=>void removeSuggestion(user.id)} className="w-full rounded-lg bg-[#E4E6EB] px-3 py-2 text-xs font-semibold text-[#1c1e21]">Remove</button></div>
                   </article>
                 );
               })}
@@ -514,6 +582,24 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
               >
                 Unfriend
               </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {mutualTarget ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 px-4" onMouseDown={(event)=>{if(event.target===event.currentTarget)setMutualTarget(null);}}>
+          <div role="dialog" aria-modal="true" aria-labelledby="mutual-title" className="w-full max-w-[420px] rounded-2xl bg-white p-5 shadow-xl">
+            <div className="flex items-center justify-between gap-3">
+              <h3 id="mutual-title" className="text-lg font-bold">Mutual friends with {nameOf(mutualTarget)}</h3>
+              <button type="button" aria-label="Close mutual friends" onClick={()=>setMutualTarget(null)} className="rounded-lg px-3 py-1.5 text-xl text-gray-600 hover:bg-gray-100">×</button>
+            </div>
+            <div className="mt-4 max-h-[60dvh] overflow-y-auto">
+              {mutualLoading ? <State loading message="" /> : mutualPeople.length ? mutualPeople.map(person=>(
+                <Link key={person.id} href={`/profile/${encodeURIComponent(person.username)}`} onClick={()=>setMutualTarget(null)} className="flex items-center gap-3 rounded-lg p-2 hover:bg-gray-50">
+                  <UserAvatar avatarUrl={person.avatar} name={nameOf(person)} size={44} />
+                  <span className="min-w-0"><span className="block truncate font-semibold">{nameOf(person)}</span><span className="block text-xs text-gray-500">@{person.username}</span></span>
+                </Link>
+              )) : <State loading={false} message="No mutual friends to show." />}
             </div>
           </div>
         </div>

@@ -1,4 +1,5 @@
 "use client";
+import useFriendRequestCount from "../hooks/useFriendRequestCount";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -38,6 +39,7 @@ function TabLabel({
 }
 
 export default function MobileBottomNav() {
+  const friendRequests=useFriendRequestCount();
   const pathname = usePathname();
   const { openMenu } = useAppShell();
   const [unread, setUnread] = React.useState(0);
@@ -114,6 +116,7 @@ export default function MobileBottomNav() {
                     maskSize: "contain",
                   }}
                 />
+                {item.href==="/friends"&&friendRequests>0&&<span className="absolute -right-3 -top-1 min-w-4 rounded-full bg-[#ED4956] px-1 text-center text-[10px] font-bold leading-4 text-white">{friendRequests>99?"99+":friendRequests}</span>}
                 {item.href === "/messenger" && unread > 0 ? (
                   <span className="absolute -right-1 -top-0.5 size-2 rounded-full bg-[#ED4956] ring-2 ring-white" />
                 ) : null}

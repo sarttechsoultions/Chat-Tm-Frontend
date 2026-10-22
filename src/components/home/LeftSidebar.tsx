@@ -1,4 +1,5 @@
 "use client";
+import {useSocket} from "../hooks/useSocket";
 
 import React, { useEffect, useState } from "react";
 import { UserAvatar } from "../ui/UserAvatar";
@@ -33,6 +34,7 @@ const BOTTOM_MENU_ITEMS = [
 
 export default function LeftSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  const socket=useSocket();
   const router = useRouter();
   const currentUser = useCurrentUser();
   const name = currentUser ? displayName(currentUser) : "ChatTm User";
@@ -44,14 +46,18 @@ export default function LeftSidebar({ onNavigate }: { onNavigate?: () => void })
 
   useEffect(() => {
     void meRequest().catch(() => undefined);
-    fetchMyProfile()
+    const refreshStats=()=>{void fetchMyProfile()
       .then((profile) => {
         setFriendsCount(profile.stats.friends);
         setPostsCount(profile.stats.posts);
         setGroupsCount(profile.stats.groups || 0);
       })
-      .catch(() => {});
-  }, []);
+      .catch(() => {});};
+    refreshStats();
+    socket?.on("friend_requests_changed",refreshStats);
+    window.addEventListener("chattm:friends-changed",refreshStats);
+    return()=>{window.removeEventListener("chattm:friends-changed",refreshStats);socket?.off("friend_requests_changed",refreshStats);};
+  }, [socket]);
 
   return (
     <aside className="w-full flex flex-col gap-3 lg:gap-6 p-[10px] bg-white rounded-[10px] shadow-[0px_4px_2px_rgba(0,0,0,0.25)] font-sans select-none">
@@ -90,10 +96,8 @@ export default function LeftSidebar({ onNavigate }: { onNavigate?: () => void })
         </p>
 
         <div className="w-full grid grid-cols-3 text-center border-t border-white/20 pt-2.5 lg:pt-[17px]">
-          <div>
-            <div className="text-[16px] lg:text-[18px] font-bold leading-6 lg:leading-[28px] text-white">{friendsCount}</div>
-            <div className="text-[11px] lg:text-[12px] leading-[16px] text-[#DBEAFE]">Friends</div>
-          </div>
+          <Link href="/profile#friends" onClick={onNavigate} aria-label="View your friends" className="rounded-lg transition hover:bg-white/10 focus-visible:outline focus-visible:outline-white"><div className="text-[16px] lg:text-[18px] font-bold leading-6 lg:leading-[28px] text-white">{friendsCount}</div>
+            <div className="text-[11px] lg:text-[12px] leading-[16px] text-[#DBEAFE]">Friends</div></Link>
           <div>
             <div className="text-[18px] font-bold leading-[28px] text-white">{postsCount}</div>
             <div className="text-[12px] leading-[16px] text-[#DBEAFE]">Posts</div>
