@@ -182,6 +182,7 @@ export default function MessengerUI() {
   const [moreReactionsFor, setMoreReactionsFor] = useState<string | null>(null);
 
   const socket = useSocket();
+  const [preview, setPreview] = useState<Message | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -367,8 +368,6 @@ export default function MessengerUI() {
       });
     };
 
-    socket.emit("get_online_users");
-
     const onOnlineList = (users: string[]) => setOnlineUsers(new Set(users));
     const onPresence = ({ userId, isOnline }: { userId: string; isOnline: boolean }) => {
       setOnlineUsers((prev) => {
@@ -483,6 +482,10 @@ export default function MessengerUI() {
     socket.on("conversation_upserted", onConversationUpserted);
     socket.on("conversation_read", onConversationRead);
     socket.on("conversation_read_notification", onConversationRead);
+    // Register the listener first. On a fast connection the server can answer
+    // immediately, so emitting before the listener caused the first presence
+    // list to be missed on mobile.
+    socket.emit("get_online_users");
 
     return () => {
       socket.off("connect", onConnect);
@@ -777,6 +780,15 @@ export default function MessengerUI() {
         (member) => member.user.id !== currentUser?.id && onlineUsers.has(member.user.id)
       ).length
     : 0;
+  const presenceLabel = isPartnerTyping
+    ? "Typing…"
+    : isGroupChat
+      ? `${activeChat?.members.length || 0} members${groupOnlineCount ? ` · ${groupOnlineCount} online` : ""}`
+      : isActiveOnline
+        ? "Active now"
+        : socket?.connected
+          ? "Offline"
+          : "Connecting…";
 
   useEffect(()=>{
     if (!activePartner || isGroupChat) { setCallRecords([]); return; }
@@ -947,13 +959,7 @@ export default function MessengerUI() {
                 <div>
                   <p className="text-[14px] font-semibold text-[#0B1C30]">{activeName}</p>
                   <p className="text-[12px] font-medium text-[#3C494A]">
-                    {isPartnerTyping
-                      ? "Typing…"
-                      : isGroupChat
-                        ? `${activeChat?.members.length || 0} members${groupOnlineCount ? ` · ${groupOnlineCount} online` : ""}`
-                        : isActiveOnline
-                          ? "Active now"
-                          : "Offline"}
+                    {presenceLabel}
                   </p>
                 </div>
               </div>
@@ -1066,7 +1072,7 @@ export default function MessengerUI() {
                                             msg.fileName === "Shared post"
                                               ? msg.body.match(/https?:\/\/[^\s]+/)?.[0]
                                               : undefined;
-                                          window.open(sharedLink || msg.mediaUrl!, sharedLink ? "_self" : "_blank");
+                                          if (sharedLink) window.location.assign(sharedLink); else setPreview(msg);
                                         }}
                                       />
                                       {(msg.fileName === "GIF" || msg.mediaUrl.includes(".gif")) && (
@@ -1080,7 +1086,7 @@ export default function MessengerUI() {
                                     <audio controls src={msg.mediaUrl} className="w-full max-w-60" />
                                   )}
                                   {msg.type === "VIDEO" && (
-                                    <video controls src={msg.mediaUrl} className="max-w-[240px] rounded-lg" />
+                                    <button onClick={() => setPreview(msg)} aria-label="Open video"><video src={msg.mediaUrl} className="max-w-[240px] rounded-lg" />Play video</button>
                                   )}
                                   {msg.type === "DOCUMENT" && (
                                     <a
@@ -1311,7 +1317,8 @@ export default function MessengerUI() {
       </section>
 
       {loadingChats && !activePartner && <ChatProfileSkeleton/>}
-      {activeChatId && activePartner && !isGroupChat && <ChatProfilePanel chatId={activeChatId} messages={messages} user={activePartner} name={activeName} online={isActiveOnline} open={detailsOpen} onClose={()=>setDetailsOpen(false)}/>}
+      {preview?.mediaUrl && <div role="dialog" aria-modal="true" aria-label="Media preview" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-8" onClick={() => setPreview(null)}><button autoFocus className="absolute right-6 top-6 text-white" onClick={() => setPreview(null)}>Close ✕</button><div onClick={e=>e.stopPropagation()}>{preview.type === "VIDEO" ? <video controls autoPlay src={preview.mediaUrl} className="max-h-[85vh] max-w-full"/> : <img src={preview.mediaUrl} alt="Attachment" className="max-h-[85vh] max-w-full object-contain"/>}</div></div>}
+      {activeChatId && activePartner && !isGroupChat && <ChatProfilePanel onMediaClick={setPreview} chatId={activeChatId} messages={messages} user={activePartner} name={activeName} online={isActiveOnline} open={detailsOpen} onClose={()=>setDetailsOpen(false)}/>}
       {showNewChat && (
         <div className="absolute inset-0 z-20 flex bg-black/20 chat-fade-in">
           <div className="m-auto w-[min(420px,92%)] max-h-[80%] overflow-hidden rounded-2xl bg-white shadow-xl chat-slide-up">
