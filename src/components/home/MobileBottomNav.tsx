@@ -42,7 +42,6 @@ export default function MobileBottomNav() {
   const { openMenu } = useAppShell();
   const [unread, setUnread] = React.useState(0);
   const hide =
-    pathname === "/messenger" ||
     pathname.startsWith("/call") ||
     pathname === "/create-story";
 

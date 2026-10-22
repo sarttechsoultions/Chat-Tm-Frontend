@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Info, Phone, Video } from "lucide-react";
+import { Info, Phone, Video, ArrowLeft } from "lucide-react";
 import ChatProfilePanel from "./ChatProfilePanel";
 import { ChatListSkeleton, ChatMessagesSkeleton, ChatProfileSkeleton } from "./ChatSkeletons";
 import { callApi, type Call, startCall } from "../../lib/api/calls";
@@ -44,6 +44,15 @@ function formatClock(value?: string) {
   return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+function formatChatTime(value?: string) {
+ if(!value)return "";
+ const date=new Date(value),now=new Date();
+ if(now.getTime()-date.getTime()<86400000)return formatClock(value);
+ const today=Date.UTC(now.getFullYear(),now.getMonth(),now.getDate());
+ const day=Date.UTC(date.getFullYear(),date.getMonth(),date.getDate());
+ const days=Math.round((today-day)/86400000);
+ return days===1?"Yesterday":days<7?days+" days ago":date.toLocaleDateString();
+}
 function formatDayLabel(value: string) {
   const date = new Date(value);
   const today = new Date();
@@ -503,8 +512,9 @@ export default function MessengerUI() {
   }, [socket]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isPartnerTyping]);
+    const frame=requestAnimationFrame(()=>messagesEndRef.current?.scrollIntoView({ behavior: "instant", block: "end" }));
+    return()=>cancelAnimationFrame(frame);
+  }, [messages, isPartnerTyping, activeChatId, loadingMessages]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setDraft(e.target.value);
@@ -885,7 +895,7 @@ export default function MessengerUI() {
                   key={chat.id}
                   type="button"
                   onClick={() => selectChat(chat.id)}
-                  className={`flex w-full max-w-[303px] items-center gap-3 p-3 rounded-[8px] text-left transition ${
+                  className={`flex w-full lg:max-w-[303px] items-center gap-3 p-3 rounded-[8px] text-left transition ${
                     selected ? "bg-[#DCE9FF]" : "bg-transparent hover:bg-gray-50"
                   }`}
                 >
@@ -903,7 +913,7 @@ export default function MessengerUI() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <p className="text-[14px] leading-5 text-[#0B1C30] font-semibold truncate">{name}</p>
-                      <span className="text-[11px] text-[#6B7280]">{formatClock(latest?.createdAt)}</span>
+                      <span className="shrink-0 ml-2 text-[11px] text-[#6B7280]">{formatChatTime(latest?.createdAt)}</span>
                     </div>
                     <div className="flex items-center justify-between mt-0.5 gap-2">
                       <p
@@ -938,13 +948,13 @@ export default function MessengerUI() {
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  className="text-[13px] font-semibold text-[#00696F] lg:hidden"
+                  aria-label="Back to chats" className="flex size-10 shrink-0 items-center justify-center rounded-full text-[#00696F] hover:bg-[#EFF4FF] lg:hidden"
                   onClick={() => {
                     setActiveChatId(null);
                     syncUrl(null);
                   }}
                 >
-                  ←
+                  <ArrowLeft size={24}/>
                 </button>
                 <div className="relative">
                   {isGroupChat && activeChat ? (
