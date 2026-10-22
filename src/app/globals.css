@@ -191,3 +191,10 @@
  html[data-keyboard-open] .messenger-mobile-space { padding-bottom: 0; }
  html[data-keyboard-open] .app-viewport { height: var(--visible-height, 100dvh); position: fixed; inset: 0; width: 100%; }
 }
+
+@media (max-width: 767px) {
+ html[data-messenger], html[data-messenger] body { overflow: hidden; overscroll-behavior: none; height: 100%; }
+ html[data-messenger] .app-viewport { position: fixed; top: var(--viewport-top, 0px); left: 0; right: 0; bottom: auto; width: 100%; height: var(--visible-height, 100dvh); overflow: hidden; }
+ html[data-messenger] .app-viewport main { min-height: 0; }
+ html[data-messenger] [data-keyboard-open] { overscroll-behavior: none; }
+}
