@@ -1324,6 +1324,10 @@ export default function MessengerUI() {
                 <input
                   ref={draftInputRef}
                   type="text"
+                  autoComplete="off"
+                  name="chat-message"
+                  enterKeyHint="send"
+                  data-form-type="other"
                   value={draft}
                   onChange={handleInputChange}
                   placeholder={isUploading ? "Uploading file..." : `Message ${activeName}...`}

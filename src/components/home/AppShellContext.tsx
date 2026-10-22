@@ -20,17 +20,21 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(()=>{
     const viewport=window.visualViewport;
     const root=document.documentElement;
+    root.toggleAttribute("data-messenger",pathname==="/messenger");
+    let maxHeight=window.innerHeight;
     const sync=()=>{
       const editing=document.activeElement?.matches("input,textarea,[contenteditable=true]");
-      const keyboard=!!editing && !!viewport && window.innerHeight-viewport.height>120;
+      maxHeight=Math.max(maxHeight,window.innerHeight);
+      const keyboard=!!editing && !!viewport && maxHeight-viewport.height>120;
       root.toggleAttribute("data-keyboard-open",keyboard);
       root.style.setProperty("--visible-height", (viewport?.height || window.innerHeight)+"px");
+      root.style.setProperty("--viewport-top",(viewport?.offsetTop||0)+"px");
     };
-    viewport?.addEventListener("resize",sync);
+    viewport?.addEventListener("resize",sync);viewport?.addEventListener("scroll",sync);
     document.addEventListener("focusin",sync);document.addEventListener("focusout",sync);
     sync();
-    return()=>{viewport?.removeEventListener("resize",sync);document.removeEventListener("focusin",sync);document.removeEventListener("focusout",sync);root.removeAttribute("data-keyboard-open");};
-  },[]);
+    return()=>{viewport?.removeEventListener("resize",sync);viewport?.removeEventListener("scroll",sync);root.removeAttribute("data-messenger");document.removeEventListener("focusin",sync);document.removeEventListener("focusout",sync);root.removeAttribute("data-keyboard-open");};
+  },[pathname]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
