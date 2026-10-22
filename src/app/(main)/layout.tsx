@@ -13,7 +13,7 @@ export default function MainLayout({
 }) {
   return (
     <AppShellProvider>
-      <div className="flex h-[100dvh] flex-col overflow-hidden bg-[#F9FAFB]">
+      <div className="app-viewport flex h-[100dvh] flex-col overflow-hidden bg-[#F9FAFB]">
         <div className="z-50 shrink-0">
           <Navbar />
         </div>

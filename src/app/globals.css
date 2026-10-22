@@ -185,3 +185,9 @@
     transform: translateY(0);
   }
 }
+
+@media (max-width: 767px) {
+ html[data-keyboard-open] .mobile-bottom-nav { display: none; }
+ html[data-keyboard-open] .messenger-mobile-space { padding-bottom: 0; }
+ html[data-keyboard-open] .app-viewport { height: var(--visible-height, 100dvh); position: fixed; inset: 0; width: 100%; }
+}
