@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Info, Phone, Video, ArrowLeft } from "lucide-react";
+import { deleteMessageLocally, mergeHistory, mergeMessage } from "../../lib/chatMessages";
 import ChatProfilePanel from "./ChatProfilePanel";
 import { ChatListSkeleton, ChatMessagesSkeleton, ChatProfileSkeleton } from "./ChatSkeletons";
 import { callApi, type Call, startCall } from "../../lib/api/calls";
-import Link from "next/link";
 import FigmaIcon from "../home/FigmaIcon";
 import { UserAvatar } from "../ui/UserAvatar";
 import { useSocket } from "../hooks/useSocket";
@@ -106,6 +106,7 @@ function conversationTitle(chat: Conversation, currentUserId?: string | null) {
   if (chat.type === "GROUP") {
     return chat.name?.trim() || "Group Chat";
   }
+  if (chat.isBlocked) return "User not found";
   return fullName(getChatPartner(chat, currentUserId));
 }
 
@@ -156,7 +157,8 @@ function isMessageSeen(msg: Message, currentUserId?: string | null) {
 
 function upsertConversation(list: Conversation[], next: Conversation) {
   const without = list.filter((item) => item.id !== next.id);
-  return [next, ...without];
+  const existing = list.find(item => item.id === next.id);
+  return [{ ...existing, ...next, isBlocked: next.isBlocked ?? existing?.isBlocked }, ...without];
 }
 
 export default function MessengerUI() {
@@ -197,9 +199,23 @@ export default function MessengerUI() {
   const followLatestRef = useRef(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const chatDrafts=useRef(new Map<string,string>());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const draftInputRef = useRef<HTMLTextAreaElement>(null);
   const activeChatIdRef = useRef<string | null>(null);
+  const [hasOlder,setHasOlder]=useState(false);
+  const [loadingOlder,setLoadingOlder]=useState(false);
+  const olderGuard=useRef(false);
+  const prependScroll=useRef<{height:number;top:number}|null>(null);
+  const historyVersion=useRef(0);
+  const uploadRetries=useRef(new Map<string,FormData>());
+  const retryGuard=useRef(new Set<string>());
+  const confirmedKeys=useRef(new Set<string>());
+  useLayoutEffect(()=>{
+    const before=prependScroll.current;const viewport=messageScrollRef.current;
+    if(before&&viewport){viewport.scrollTop=viewport.scrollHeight-before.height+before.top;prependScroll.current=null;}
+  },[messages]);
+
   const currentUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -214,6 +230,8 @@ export default function MessengerUI() {
 
   const selectChat = useCallback(
     (chatId: string) => {
+      const previous=activeChatIdRef.current;if(previous)chatDrafts.current.set(previous,draftInputRef.current?.value||"");
+      setDraft(chatDrafts.current.get(chatId)||"");setReplyingTo(null);
       setActiveChatId(chatId);
       setMessages([]);
       syncUrl(chatId);
@@ -247,18 +265,17 @@ export default function MessengerUI() {
 
     const boot = async () => {
       setLoadingChats(true);
+      const params = new URLSearchParams(window.location.search);
+      const chatId = params.get("chatId");
+      const userId = params.get("userId");
+      // Start deep-linked history alongside the conversation list.
+      if (chatId) setActiveChatId(chatId);
       try {
         const chats = await fetchConversations();
         if (cancelled) return;
         setConversations(chats);
 
-        const params = new URLSearchParams(window.location.search);
-        const chatId = params.get("chatId");
-        const userId = params.get("userId");
-
-        if (chatId) {
-          setActiveChatId(chatId);
-        } else if (userId) {
+        if (!chatId && userId) {
           await openFriendChat(userId);
         }
       } catch (err) {
@@ -289,6 +306,7 @@ export default function MessengerUI() {
     }
 
     let cancelled = false;
+    const version=++historyVersion.current;
     queueMicrotask(() => {
       if (cancelled) return;
       setLoadingMessages(true);
@@ -301,7 +319,10 @@ export default function MessengerUI() {
 
     fetchMessages(activeChatId)
       .then((items) => {
-        if (!cancelled) setMessages(items);
+        if (!cancelled && version===historyVersion.current) {
+          setMessages(prev=>mergeHistory(items,prev,activeChatId));setHasOlder(items.length===80);
+          if(!document.hidden) void markConversationRead(activeChatId).catch(()=>undefined);
+        }
       })
       .catch((err) => {
         if (!cancelled) {
@@ -312,24 +333,16 @@ export default function MessengerUI() {
         if (!cancelled) setLoadingMessages(false);
       });
 
-    markConversationRead(activeChatId).catch(() => undefined);
-    queueMicrotask(() => {
-      if (cancelled) return;
-      setConversations((prev) =>
-        prev.map((chat) => (chat.id === activeChatId ? { ...chat, unreadCount: 0 } : chat))
-      );
-    });
-
-    if (socket?.connected) {
-      socket.emit("join_conversation", activeChatId);
-    }
-
     return () => {
       cancelled = true;
-      if (socket && activeChatId) {
-        socket.emit("leave_conversation", activeChatId);
-      }
     };
+  }, [activeChatId]);
+
+  // Socket initialization must not restart HTTP history loading or its skeleton.
+  useEffect(() => {
+    if (!socket || !activeChatId) return;
+    if (socket.connected) socket.emit("join_conversation", activeChatId);
+    return () => { socket.emit("leave_conversation", activeChatId); };
   }, [activeChatId, socket]);
 
   const processedIncoming = useRef(new Set<string>());
@@ -347,24 +360,12 @@ export default function MessengerUI() {
       const openId = activeChatIdRef.current;
       const me = currentUserIdRef.current;
       const isMine = msg.senderId === me;
-      const isOpen = msg.conversationId === openId;
+      if(isMine&&msg.clientMessageId){confirmedKeys.current.add(msg.clientMessageId);if(confirmedKeys.current.size>1000)confirmedKeys.current.delete(confirmedKeys.current.values().next().value!);}
+      const isOpen = msg.conversationId === openId && !document.hidden;
 
       if (isOpen) {
         setIsPartnerTyping(false);
-        setMessages((prev) => {
-          if (prev.some((item) => item.id === msg.id)) return prev;
-          if (isMine) {
-            const pendingIndex = prev.findIndex(
-              (item) => item.pending && item.body === msg.body
-            );
-            if (pendingIndex !== -1) {
-              const next = [...prev];
-              next[pendingIndex] = { ...msg, pending: false, failed: false };
-              return next;
-            }
-          }
-          return [...prev, msg];
-        });
+        setMessages(prev=>mergeMessage(prev,msg));
         markConversationRead(msg.conversationId).catch(() => undefined);
       }
 
@@ -377,9 +378,9 @@ export default function MessengerUI() {
 
         return upsertConversation(prev, {
           ...existing,
-          updatedAt: msg.createdAt,
-          unreadCount: isOpen || isMine ? 0 : (existing.unreadCount || 0) + 1,
-          messages: [msg]
+          updatedAt: existing.messages[0] && Date.parse(existing.messages[0].createdAt)>Date.parse(msg.createdAt) ? existing.updatedAt : msg.createdAt,
+          unreadCount: isOpen ? 0 : isMine ? existing.unreadCount : (existing.unreadCount || 0) + 1,
+          messages: existing.messages[0] && Date.parse(existing.messages[0].createdAt)>Date.parse(msg.createdAt) ? existing.messages : [msg]
         });
       });
     };
@@ -421,19 +422,8 @@ export default function MessengerUI() {
     };
 
     const onDeleted = ({ messageId }: { messageId: string }) => {
-      setMessages((prev) =>
-        prev.map((item) =>
-          item.id === messageId
-            ? {
-                ...item,
-                isDeleted: true,
-                body: "This message was deleted",
-                mediaUrl: null,
-                reactions: []
-              }
-            : item
-        )
-      );
+      setMessages(prev=>deleteMessageLocally(prev,messageId));
+      setConversations(prev=>prev.map(chat=>({...chat,messages:deleteMessageLocally(chat.messages,messageId)})));
     };
 
     const onConversationUpserted = (chat: Conversation) => {
@@ -450,22 +440,23 @@ export default function MessengerUI() {
       readAt: string;
     }) => {
       const me = currentUserIdRef.current;
-      if (!readAt || userId === me) return;
+      if (!readAt) return;
 
       setConversations((prev) =>
         prev.map((chat) =>
           chat.id === conversationId
             ? {
                 ...chat,
+                unreadCount: userId===me && (!chat.messages[0] || Date.parse(chat.messages[0].createdAt)<=Date.parse(readAt)) ? 0 : chat.unreadCount,
                 members: chat.members.map((member) =>
-                  member.userId === userId ? { ...member, lastReadAt: readAt } : member
+                  member.userId === userId && (!member.lastReadAt || Date.parse(member.lastReadAt)<Date.parse(readAt)) ? { ...member, lastReadAt: readAt } : member
                 )
               }
             : chat
         )
       );
 
-      if (conversationId !== activeChatIdRef.current) return;
+      if (userId === me || conversationId !== activeChatIdRef.current) return;
 
       setMessages((prev) =>
         prev.map((item) => {
@@ -480,7 +471,21 @@ export default function MessengerUI() {
       );
     };
 
+    const syncOpenChat = () => {
+      if(document.hidden)return;
+      const id=activeChatIdRef.current;if(!id)return;
+      const version=++historyVersion.current;
+      void fetchMessages(id).then(items=>{
+        if(id!==activeChatIdRef.current||version!==historyVersion.current)return;
+        const oldest=items[0]?.createdAt;
+        setMessages(prev=>mergeHistory(items,prev.filter(message=>message.pending||message.failed||(oldest&&Date.parse(message.createdAt)>=Date.parse(oldest))),id));
+        setHasOlder(items.length===80);
+        void markConversationRead(id).catch(()=>undefined);
+      }).catch(()=>undefined);
+    };
+    const onFocus = () => { syncOpenChat();fetchConversations().then(setConversations).catch(()=>undefined); };
     const onConnect = () => {
+      syncOpenChat();
       fetchConversations().then(setConversations).catch(()=>undefined);
       socket.emit("get_online_users");
       if (activeChatIdRef.current) {
@@ -488,6 +493,11 @@ export default function MessengerUI() {
       }
     };
 
+    const refreshBlockStatus = () => { fetchConversations().then(setConversations).catch(() => undefined); };
+    socket.on("friend_requests_changed", refreshBlockStatus);
+    window.addEventListener("chattm:friends-changed", refreshBlockStatus);
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange",onFocus);
     socket.on("connect", onConnect);
     socket.on("online_users_list", onOnlineList);
     socket.on("user_presence_changed", onPresence);
@@ -505,6 +515,10 @@ export default function MessengerUI() {
     socket.emit("get_online_users");
 
     return () => {
+      socket.off("friend_requests_changed", refreshBlockStatus);
+      window.removeEventListener("chattm:friends-changed", refreshBlockStatus);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange",onFocus);
       socket.off("connect", onConnect);
       socket.off("online_users_list", onOnlineList);
       socket.off("user_presence_changed", onPresence);
@@ -540,7 +554,7 @@ export default function MessengerUI() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setDraft(e.target.value);
-    if (!socket || !activeChatId) return;
+    if (!socket || !activeChatId || conversations.find(chat => chat.id === activeChatId)?.isBlocked) return;
 
     socket.emit("typing_start", { conversationId: activeChatId });
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -550,15 +564,11 @@ export default function MessengerUI() {
   };
 
   const appendConfirmed = (tempId: string, saved: Message) => {
-    setMessages((prev) => {
-      if (prev.some((item) => item.id === saved.id)) {
-        return prev.filter((item) => item.id !== tempId);
-      }
-      return prev.map((item) => (item.id === tempId ? { ...saved, pending: false } : item));
-    });
+    if(saved.clientMessageId)confirmedKeys.current.add(saved.clientMessageId);
+    setMessages(prev=>saved.conversationId===activeChatIdRef.current?mergeMessage(prev,saved,tempId):prev);
     setConversations((prev) => {
       const existing = prev.find((chat) => chat.id === saved.conversationId);
-      if (!existing) return prev;
+      if (!existing || (existing.messages[0] && Date.parse(existing.messages[0].createdAt)>Date.parse(saved.createdAt))) return prev;
       return upsertConversation(prev, {
         ...existing,
         updatedAt: saved.createdAt,
@@ -569,14 +579,17 @@ export default function MessengerUI() {
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (conversations.find(chat => chat.id === activeChatId)?.isBlocked) return;
     if (!draft.trim() || !activeChatId || !currentUser) return;
 
     followLatestRef.current = true;
     const body = draft.trim();
     const replyTargetId = replyingTo?.id;
-    const tempId = `temp-${Date.now()}`;
+    const clientMessageId=crypto.randomUUID();
+    const tempId = `temp-${clientMessageId}`;
     const optimistic: Message = {
       id: tempId,
+      clientMessageId,
       conversationId: activeChatId,
       senderId: currentUser.id,
       body,
@@ -608,14 +621,13 @@ export default function MessengerUI() {
     if (socket) socket.emit("typing_stop", { conversationId: activeChatId });
 
     try {
-      const saved = await sendMessage(activeChatId, body, replyTargetId);
+      const saved = await sendMessage(activeChatId, body, replyTargetId, {clientMessageId});
       appendConfirmed(tempId, saved);
     } catch (err) {
       setMessages((prev) =>
         prev.map((item) => (item.id === tempId ? { ...item, pending: false, failed: true } : item))
       );
-      setDraft(body);
-      setError(err instanceof Error ? err.message : "Failed to send message");
+      if(!confirmedKeys.current.has(clientMessageId)) setError(err instanceof Error ? err.message : "Failed to send message");
     }
   };
 
@@ -633,10 +645,12 @@ export default function MessengerUI() {
   };
 
   const handleSendGif = async (gif: GifItem) => {
-    if (!activeChatId || !currentUser) return;
-    const tempId = `temp-gif-${Date.now()}`;
+    if (!activeChatId || !currentUser || conversations.find(chat => chat.id === activeChatId)?.isBlocked) return;
+    const clientMessageId=crypto.randomUUID();
+    const tempId = `temp-gif-${clientMessageId}`;
     const optimistic: Message = {
       id: tempId,
+      clientMessageId,
       conversationId: activeChatId,
       senderId: currentUser.id,
       body: "",
@@ -658,6 +672,7 @@ export default function MessengerUI() {
     try {
       const saved = await sendMessage(activeChatId, "", replyTargetId, {
         type: "IMAGE",
+        clientMessageId,
         mediaUrl: gif.url,
         fileName: "GIF"
       });
@@ -666,28 +681,35 @@ export default function MessengerUI() {
       setMessages((prev) =>
         prev.map((item) => (item.id === tempId ? { ...item, pending: false, failed: true } : item))
       );
-      setError(err instanceof Error ? err.message : "Failed to send GIF");
+      if(!confirmedKeys.current.has(clientMessageId)) setError(err instanceof Error ? err.message : "Failed to send GIF");
     }
   };
 
   const attachmentPreviews = useRef(new Set<string>());
+  const previewByKey=useRef(new Map<string,string>());
+  useEffect(()=>{for(const message of messages){if(message.pending||message.failed||!message.clientMessageId)continue;const url=previewByKey.current.get(message.clientMessageId);if(url){URL.revokeObjectURL(url);attachmentPreviews.current.delete(url);previewByKey.current.delete(message.clientMessageId);uploadRetries.current.delete(message.clientMessageId);}}},[messages]);
   useEffect(()=>()=>{attachmentPreviews.current.forEach(url=>URL.revokeObjectURL(url));attachmentPreviews.current.clear();},[]);
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !activeChatId || !currentUser) return;
+    if (!file || !activeChatId || !currentUser || conversations.find(chat => chat.id === activeChatId)?.isBlocked) return;
+    if(file.size>50*1024*1024){setError("Choose a file smaller than 50 MB.");e.target.value="";return;}
 
     const formData = new FormData();
     formData.append("file", file);
     if (draft.trim()) formData.append("body", draft.trim());
     if (replyingTo?.id) formData.append("replyToId", replyingTo.id);
 
-    const tempId = `temp-file-${Date.now()}`;
+    const clientMessageId=crypto.randomUUID();
+    formData.append("clientMessageId",clientMessageId);
+    uploadRetries.current.set(clientMessageId,formData);
+    const tempId = `temp-file-${clientMessageId}`;
     const previewUrl = URL.createObjectURL(file);
-    attachmentPreviews.current.add(previewUrl);
+    attachmentPreviews.current.add(previewUrl);previewByKey.current.set(clientMessageId,previewUrl);
     setMessages((prev) => [
       ...prev,
       {
         id: tempId,
+        clientMessageId,
         conversationId: activeChatId,
         senderId: currentUser.id,
         body: draft.trim(),
@@ -699,27 +721,50 @@ export default function MessengerUI() {
         readBy: []
       }
     ]);
+    setDraft("");setReplyingTo(null);
     setIsUploading(true);
 
     try {
       const saved = await sendAttachment(activeChatId, formData);
       appendConfirmed(tempId, saved);
+      uploadRetries.current.delete(clientMessageId);
       URL.revokeObjectURL(previewUrl);
-      attachmentPreviews.current.delete(previewUrl);
-      setDraft("");
-      setReplyingTo(null);
+      attachmentPreviews.current.delete(previewUrl);previewByKey.current.delete(clientMessageId);
     } catch (err) {
       setMessages((prev) =>
         prev.map((item) => (item.id === tempId ? { ...item, pending: false, failed: true } : item))
       );
-      setError(err instanceof Error ? err.message : "File upload failed");
+      if(!confirmedKeys.current.has(clientMessageId)) setError(err instanceof Error ? err.message : "File upload failed");
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
+  const retryMessage = async (message:Message) => {
+    if(!message.clientMessageId||retryGuard.current.has(message.id)||conversations.find(chat=>chat.id===message.conversationId)?.isBlocked)return;
+    retryGuard.current.add(message.id);setError("");
+    setMessages(prev=>prev.map(item=>item.id===message.id?{...item,pending:true,failed:false}:item));
+    try{
+      const form=uploadRetries.current.get(message.clientMessageId);
+      const saved=form?await sendAttachment(message.conversationId,form):await sendMessage(message.conversationId,message.body,message.replyToId??undefined,{clientMessageId:message.clientMessageId,type:message.type,mediaUrl:message.mediaUrl??undefined,fileName:message.fileName??undefined});
+      appendConfirmed(message.id,saved);
+      if(form){uploadRetries.current.delete(message.clientMessageId);if(message.mediaUrl?.startsWith("blob:")){URL.revokeObjectURL(message.mediaUrl);attachmentPreviews.current.delete(message.mediaUrl);}}
+    }catch(error){setMessages(prev=>prev.map(item=>item.id===message.id?{...item,pending:false,failed:true}:item));if(!confirmedKeys.current.has(message.clientMessageId))setError(error instanceof Error?error.message:"Unable to retry message.");}
+    finally{retryGuard.current.delete(message.id);}
+  };
+  const loadOlder = async () => {
+    if(olderGuard.current||!activeChatId||!hasOlder)return;
+    const cursor=messages.find(message=>!message.pending&&!message.failed)?.id;if(!cursor)return;
+    olderGuard.current=true;setLoadingOlder(true);const id=activeChatId;
+    try{const older=await fetchMessages(id,cursor);if(id!==activeChatIdRef.current)return;
+      const viewport=messageScrollRef.current;if(viewport)prependScroll.current={height:viewport.scrollHeight,top:viewport.scrollTop};
+      followLatestRef.current=false;setMessages(prev=>mergeHistory(older,prev,id));setHasOlder(older.length===80);
+    }catch{setError("Unable to load older messages. Try again.");}finally{olderGuard.current=false;setLoadingOlder(false);}
+  };
+
   const handleReaction = async (messageId: string, emoji: string) => {
+    if(conversations.find(chat=>chat.id===activeChatId)?.isBlocked)return;
     try {
       const reactions = await toggleMessageReaction(messageId, emoji);
       setMessages((prev) =>
@@ -740,13 +785,7 @@ export default function MessengerUI() {
     setDeleting(true);
     try {
       await deleteMessageForEveryone(deleteTarget.id);
-      setMessages((prev) =>
-        prev.map((item) =>
-          item.id === deleteTarget.id
-            ? { ...item, isDeleted: true, body: "This message was deleted", mediaUrl: null, reactions: [] }
-            : item
-        )
-      );
+      setMessages(prev=>deleteMessageLocally(prev,deleteTarget.id));
       setDeleteTarget(null);
     } catch (err) {
       console.error("Failed to delete", err);
@@ -826,17 +865,18 @@ export default function MessengerUI() {
   }, [friends, friendQuery]);
 
   const activeChat = conversations.find((chat) => chat.id === activeChatId);
+  const isChatBlocked = activeChat?.type === "DIRECT" && activeChat.isBlocked === true;
   const activePartner = activeChat ? getChatPartner(activeChat, currentUser?.id) : null;
   const activeName = activeChat ? conversationTitle(activeChat, currentUser?.id) : "Chat";
   const activeAvatar = activeChat ? conversationAvatar(activeChat, currentUser?.id) : "";
   const isGroupChat = activeChat?.type === "GROUP";
-  const isActiveOnline = activePartner ? onlineUsers.has(activePartner.id) : false;
+  const isActiveOnline = !isChatBlocked && activePartner ? onlineUsers.has(activePartner.id) : false;
   const groupOnlineCount = activeChat
     ? activeChat.members.filter(
         (member) => member.user.id !== currentUser?.id && onlineUsers.has(member.user.id)
       ).length
     : 0;
-  const presenceLabel = isPartnerTyping
+  const presenceLabel = isChatBlocked ? "Connection unavailable" : isPartnerTyping
     ? "Typing…"
     : isGroupChat
       ? `${activeChat?.members.length || 0} members${groupOnlineCount ? ` · ${groupOnlineCount} online` : ""}`
@@ -847,7 +887,7 @@ export default function MessengerUI() {
           : "Connecting…";
 
   useEffect(()=>{
-    if (!activePartner || isGroupChat) { setCallRecords([]); return; }
+    if (!activePartner || isGroupChat) { const timer=window.setTimeout(()=>setCallRecords([]),0); return()=>window.clearTimeout(timer); }
     let cancelled=false;
     void callApi<{items:Call[]}>('?peerId='+encodeURIComponent(activePartner.id)).then(data=>{if(!cancelled)setCallRecords(data.items);}).catch(()=>{});
     const updated=(call:Call)=>{if(cancelled)return;setCallRecords(items=>[call,...items.filter(item=>item.id!==call.id)]);};
@@ -931,7 +971,7 @@ export default function MessengerUI() {
             visibleConversations.map((chat) => {
               const partner = getChatPartner(chat, currentUser?.id);
               const name = conversationTitle(chat, currentUser?.id);
-              const isUserOnline = partner ? onlineUsers.has(partner.id) : false;
+              const isUserOnline = !chat.isBlocked && partner ? onlineUsers.has(partner.id) : false;
               const latest = chat.messages?.[0];
               const call = latestChatCall(chat);
               const callTime = call?.endedAt || call?.startedAt;
@@ -1029,10 +1069,10 @@ export default function MessengerUI() {
                 {!isGroupChat && activePartner && <button aria-label="Chat profile details" aria-expanded={detailsOpen} onClick={()=>setDetailsOpen(!detailsOpen)} className="rounded-full p-2 text-[#00696F] hover:bg-[#EFF4FF]"><Info size={20}/></button>}
                 {!isGroupChat ? (
                   <>
-                    <button type="button" onClick={()=>activePartner && startCall(activePartner.id,"AUDIO")} className="p-2 rounded-full hover:bg-[#EFF4FF] text-[#00696F] transition">
+                    <button type="button" disabled={isChatBlocked} onClick={()=>!isChatBlocked && activePartner && startCall(activePartner.id,"AUDIO")} className="p-2 rounded-full hover:bg-[#EFF4FF] text-[#00696F] transition disabled:cursor-not-allowed disabled:opacity-40">
                       <FigmaIcon src="/figma/icons/call-phone.svg" alt="Audio Call" width={18} height={18} />
                     </button>
-                    <button type="button" onClick={()=>activePartner && startCall(activePartner.id,"VIDEO")} className="p-2 rounded-full hover:bg-[#EFF4FF] text-[#00696F] transition">
+                    <button type="button" disabled={isChatBlocked} onClick={()=>!isChatBlocked && activePartner && startCall(activePartner.id,"VIDEO")} className="p-2 rounded-full hover:bg-[#EFF4FF] text-[#00696F] transition disabled:cursor-not-allowed disabled:opacity-40">
                       <FigmaIcon src="/figma/icons/call-video.svg" alt="Video Call" width={20} height={16} />
                     </button>
                   </>
@@ -1041,6 +1081,7 @@ export default function MessengerUI() {
             </header>
 
             <div ref={messageScrollRef} onScroll={event=>{const el=event.currentTarget;followLatestRef.current=el.scrollHeight-el.scrollTop-el.clientHeight<80;}} className="min-h-0 flex-1 overflow-y-auto no-scrollbar bg-[#F8F9FF] px-4 py-6 [overflow-anchor:none]"><div className="flex min-h-full flex-col gap-4 [&>*]:shrink-0">
+              {hasOlder && <button type="button" disabled={loadingOlder} onClick={()=>void loadOlder()} className="mx-auto rounded-full bg-white px-4 py-2 text-xs text-[#00696F] shadow-sm disabled:opacity-50">{loadingOlder?"Loading…":"Load earlier messages"}</button>}
               {openingFriend || loadingMessages ? (
                 <ChatMessagesSkeleton/>
               ) : messages.length === 0 ? (
@@ -1069,7 +1110,7 @@ export default function MessengerUI() {
                       if (msg.callRecord) {
                         const record=msg.callRecord;const mine=record.callerId===currentUser?.id;
                         const duration=record.status==='ENDED'&&record.endedAt?Math.max(0,Math.floor((new Date(record.endedAt).getTime()-new Date(record.startedAt).getTime())/1000)):0;
-                        return <div key={msg.id} id={'message-'+msg.id} className={'flex '+(mine?'justify-end':'justify-start')}><button onClick={()=>activePartner&&startCall(activePartner.id,record.type)} className="flex max-w-[85%] items-center gap-3 rounded-2xl border border-[#d9e8ea] bg-white px-4 py-3 text-left shadow-sm"><span className={'flex size-10 shrink-0 items-center justify-center rounded-full '+(record.status==='MISSED'?'bg-red-50 text-red-500':'bg-[#e4f2f2] text-[#00696F]')}>{record.type==='VIDEO'?<Video size={19}/>:<Phone size={19}/>}</span><span><span className="block text-sm font-semibold text-[#0B1C30]">{record.status==='MISSED'?'Missed ':''}{record.type==='VIDEO'?'Video call':'Audio call'}</span><span className="mt-1 block text-xs text-gray-500">{mine?'Outgoing':'Incoming'} · {record.status==='ENDED'?Math.floor(duration/60)+':'+String(duration%60).padStart(2,'0'):formatClock(msg.createdAt)}</span><span className="mt-1 block text-[11px] font-medium text-[#00696F]">Tap to call back</span></span></button></div>;
+                        return <div key={msg.id} id={'message-'+msg.id} className={'flex '+(mine?'justify-end':'justify-start')}><button disabled={isChatBlocked} onClick={()=>!isChatBlocked&&activePartner&&startCall(activePartner.id,record.type)} className="flex max-w-[85%] items-center gap-3 rounded-2xl border border-[#d9e8ea] bg-white px-4 py-3 text-left shadow-sm"><span className={'flex size-10 shrink-0 items-center justify-center rounded-full '+(record.status==='MISSED'?'bg-red-50 text-red-500':'bg-[#e4f2f2] text-[#00696F]')}>{record.type==='VIDEO'?<Video size={19}/>:<Phone size={19}/>}</span><span><span className="block text-sm font-semibold text-[#0B1C30]">{record.status==='MISSED'?'Missed ':''}{record.type==='VIDEO'?'Video call':'Audio call'}</span><span className="mt-1 block text-xs text-gray-500">{mine?'Outgoing':'Incoming'} · {record.status==='ENDED'?Math.floor(duration/60)+':'+String(duration%60).padStart(2,'0'):formatClock(msg.createdAt)}</span><span className="mt-1 block text-[11px] font-medium text-[#00696F]">{isChatBlocked ? "Connection unavailable" : "Tap to call back"}</span></span></button></div>;
                       }
                       const isMine = msg.senderId === currentUser?.id;
                       const sender =
@@ -1172,7 +1213,7 @@ export default function MessengerUI() {
                                 }`}
                               >
                                 <span>
-                                  {msg.failed ? "Failed" : msg.pending ? "Sending…" : formatClock(msg.createdAt)}
+                                  {msg.failed ? <button type="button" disabled={isChatBlocked} onClick={()=>void retryMessage(msg)} className="underline disabled:opacity-40">Failed · Retry</button> : msg.pending ? "Sending…" : formatClock(msg.createdAt)}
                                 </span>
                                 {isMine && !msg.isDeleted ? (
                                   <SeenTicks
@@ -1258,7 +1299,7 @@ export default function MessengerUI() {
                 ))
               )}
 
-              {isPartnerTyping && (
+              {!isChatBlocked && isPartnerTyping && (
                 <div className="flex items-center gap-2 text-gray-500 text-xs italic chat-slide-up">
                   <div className="flex gap-1 py-1.5 px-3 bg-[#E5EEFF] rounded-full">
                     <span className="w-1.5 h-1.5 bg-[#00696F] rounded-full typing-dot" />
@@ -1273,7 +1314,7 @@ export default function MessengerUI() {
             </div>
             </div>
 
-            {replyingTo && (
+            {!isChatBlocked && replyingTo && (
               <div className="flex items-center justify-between px-4 py-2 bg-[#EFF4FF] border-t border-[#D3E4FE] chat-slide-up">
                 <div className="text-xs truncate">
                   <span className="font-semibold text-[#00696F]">
@@ -1291,7 +1332,7 @@ export default function MessengerUI() {
               </div>
             )}
 
-            {composerTray && (
+            {!isChatBlocked && composerTray && (
               <ComposerTray
                 mode={composerTray}
                 onClose={() => setComposerTray(null)}
@@ -1300,7 +1341,7 @@ export default function MessengerUI() {
               />
             )}
 
-            <form
+            {isChatBlocked ? <div role="status" className="border-t border-[#D3E4FE] bg-white px-5 py-5 text-center"><p className="text-sm font-semibold text-[#243D40]">You can’t message or call this person</p><p className="mt-1 text-xs text-gray-500">This connection is unavailable. Previous messages remain in your chat history.</p></div> : <form
               autoComplete="off"
               className="shrink-0 flex items-center gap-1.5 px-3 pt-3 border-t border-[#D3E4FE] bg-white pb-[max(0.75rem,env(safe-area-inset-bottom))]"
               onSubmit={handleSend}
@@ -1340,9 +1381,9 @@ export default function MessengerUI() {
                   value={draft}
                   onChange={handleInputChange}
                   onKeyDown={event=>{if(event.key==="Enter"&&!event.shiftKey&&!event.nativeEvent.isComposing){event.preventDefault();event.currentTarget.form?.requestSubmit();}}}
-                  placeholder={isUploading ? "Uploading file..." : `Message ${activeName}...`}
+                  placeholder={isUploading ? "Uploading file..." : "Write a message..."}
                   disabled={isUploading}
-                  className="block resize-none w-full rounded-full bg-[#EFF4FF] pl-4 pr-11 py-[10px] text-[15px] text-[#0B1C30] placeholder:text-[#6B7280] outline-none"
+                  className="no-scrollbar block resize-none w-full rounded-full bg-[#EFF4FF] pl-4 pr-11 py-[10px] text-[15px] text-[#0B1C30] placeholder:text-[#6B7280] outline-none"
                 />
                 <button
                   type="button"
@@ -1380,7 +1421,7 @@ export default function MessengerUI() {
                   className="brightness-0 invert"
                 />
               </button>
-            </form>
+            </form>}
           </>
         ) : loadingChats ? <ChatMessagesSkeleton/> : (
           <div className="flex-1 flex flex-col items-center justify-center bg-[#F8F9FF] chat-fade-in">
@@ -1398,8 +1439,8 @@ export default function MessengerUI() {
       </section>
 
       {loadingChats && !activePartner && <ChatProfileSkeleton/>}
-      {preview?.mediaUrl && <div role="dialog" aria-modal="true" aria-label="Media preview" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-8" onClick={() => setPreview(null)}><button autoFocus className="absolute right-6 top-6 text-white" onClick={() => setPreview(null)}>Close ✕</button><div onClick={e=>e.stopPropagation()}>{preview.type === "VIDEO" ? <video controls autoPlay src={preview.mediaUrl} className="max-h-[85vh] max-w-full"/> : <img src={preview.mediaUrl} alt="Attachment" className="max-h-[85vh] max-w-full object-contain"/>}</div></div>}
-      {activeChatId && activePartner && !isGroupChat && <ChatProfilePanel onMediaClick={setPreview} chatId={activeChatId} messages={messages} user={activePartner} name={activeName} online={isActiveOnline} open={detailsOpen} onClose={()=>setDetailsOpen(false)}/>}
+      {preview?.mediaUrl && <div role="dialog" aria-modal="true" aria-label="Media preview" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-8" onClick={() => setPreview(null)}><button autoFocus className="absolute right-6 top-6 text-white" onClick={() => setPreview(null)}>Close ✕</button><div onClick={e=>e.stopPropagation()}>{preview.type === "VIDEO" ? <video controls controlsList="nodownload nofullscreen noplaybackrate noremoteplayback" disablePictureInPicture disableRemotePlayback playsInline autoPlay src={preview.mediaUrl} className="max-h-[85vh] max-w-full"/> : <img src={preview.mediaUrl} alt="Attachment" className="max-h-[85vh] max-w-full object-contain"/>}</div></div>}
+      {activeChatId && activePartner && !isGroupChat && <ChatProfilePanel onMediaClick={setPreview} chatId={activeChatId} messages={messages} user={activePartner} name={activeName} blocked={isChatBlocked} online={isActiveOnline} open={detailsOpen} onClose={()=>setDetailsOpen(false)}/>}
       {showNewChat && (
         <div className="absolute inset-0 z-20 flex bg-black/20 chat-fade-in">
           <div className="m-auto w-[min(420px,92%)] max-h-[80%] overflow-hidden rounded-2xl bg-white shadow-xl chat-slide-up">

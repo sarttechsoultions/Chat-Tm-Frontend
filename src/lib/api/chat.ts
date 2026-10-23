@@ -51,6 +51,7 @@ export type ReplyMessage = {
 };
 
 export type Message = {
+  clientMessageId?: string | null;
   id: string;
   conversationId: string;
   senderId: string;
@@ -77,6 +78,7 @@ export type ConversationMember = {
 };
 
 export type Conversation = {
+  isBlocked?: boolean;
   id: string;
   type: "DIRECT" | "GROUP";
   name?: string;
@@ -93,9 +95,21 @@ export async function fetchConversations(): Promise<Conversation[]> {
   return Array.isArray(data) ? data : [];
 }
 
-export async function fetchMessages(conversationId: string): Promise<Message[]> {
-  const data = await chatRequest<Message[]>(`/messages/${conversationId}?limit=80`);
-  return Array.isArray(data) ? data : [];
+const pendingHistory = new Map<string, Promise<Message[]>>();
+export function fetchMessages(conversationId: string, cursor?: string): Promise<Message[]> {
+  // Share only in-flight reads. Include the session so accounts cannot share results.
+  const key = `${getSessionToken()}:${conversationId}:${cursor || ""}`;
+  const existing = pendingHistory.get(key);
+  if (existing) return existing;
+  const request = chatRequest<Message[] | { items: Message[]; senders: User[] }>(
+    `/messages/${conversationId}?limit=80&compact=1${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`
+  ).then(data => {
+    if (Array.isArray(data)) return data;
+    const senders = new Map(data.senders.map(sender => [sender.id, sender]));
+    return data.items.map(message => ({ ...message, sender: senders.get(message.senderId) }));
+  }).finally(() => { pendingHistory.delete(key); });
+  pendingHistory.set(key, request);
+  return request;
 }
 
 export async function createDirectConversation(targetUserId: string): Promise<Conversation> {
@@ -128,12 +142,12 @@ export async function sendMessage(
   conversationId: string,
   body: string,
   replyToId?: string,
-  extra?: { type?: Message["type"]; mediaUrl?: string; fileName?: string }
+  extra?: { type?: Message["type"]; mediaUrl?: string; fileName?: string; clientMessageId?: string }
 ): Promise<Message> {
   return chatRequest<Message>(`/messages/${conversationId}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ body, replyToId, ...extra }),
+    body: JSON.stringify({ body, replyToId, clientMessageId: extra?.clientMessageId || crypto.randomUUID(), ...extra }),
   });
 }
 
@@ -177,10 +191,16 @@ export function notifyUnreadChanged() {
   window.dispatchEvent(new Event(UNREAD_CHANGED_EVENT));
 }
 
+let unreadInFlight: { token: string; promise: Promise<number> } | null = null;
 export async function fetchUnreadCount(): Promise<number> {
-  if (!getSessionToken()) return 0;
-  const data = await chatRequest<{ count: number }>("/conversations/unread-count");
-  return typeof data?.count === "number" ? data.count : 0;
+  const token = getSessionToken();
+  if (!token) return 0;
+  if (unreadInFlight?.token === token) return unreadInFlight.promise;
+  const promise = chatRequest<{ count: number }>("/conversations/unread-count")
+    .then(data => typeof data?.count === "number" ? data.count : 0);
+  unreadInFlight = { token, promise };
+  try { return await promise; }
+  finally { if (unreadInFlight?.promise === promise) unreadInFlight = null; }
 }
 
 export async function markConversationRead(conversationId: string) {

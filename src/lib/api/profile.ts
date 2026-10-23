@@ -49,7 +49,7 @@ export type ProfileUser = {
 export type ProfileData = {
   user: ProfileUser;
   isOwn: boolean;
-  friendship: { status: FriendshipStatus; requestId: string | null };
+  friendship: { status: FriendshipStatus; requestId: string | null; canUnblock?: boolean };
   stats: { friends: number; posts: number; photos: number; groups?: number };
   friends: FriendUser[];
   photos: { id: string; url: string; postId: string }[];
@@ -89,4 +89,11 @@ export async function updateProfile(input: {
   if (input.avatar) formData.append("avatar", input.avatar);
   if (input.coverPhoto) formData.append("coverPhoto", input.coverPhoto);
   return request<{ user: AuthUser }>("/users/me", { method: "PATCH", body: formData });
+}
+
+export async function visibleSearchHistory(ids: string[]) { return request<{items: PostAuthor[]}>(`/users/search/history?ids=${encodeURIComponent(ids.join(","))}`).then(data => data.items); }
+
+export async function fetchProfileFriends(username: string, page = 1, q = "") {
+ const params=new URLSearchParams({page:String(page),limit:"12",q});
+ return request<{items:FriendUser[];total:number;page:number;hasNext:boolean}>(`/users/profile/${encodeURIComponent(username)}/friends?${params}`);
 }

@@ -1,5 +1,5 @@
-import FriendsView from "../../../../components/friends/FriendsView";
+import { redirect } from "next/navigation";
 
-export default function OnlineFriendsPage() {
-  return <FriendsView tab="suggestions" />;
+export default function FriendsRedirectPage() {
+  redirect("/friends/requests");
 }
