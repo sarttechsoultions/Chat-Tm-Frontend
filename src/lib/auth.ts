@@ -246,12 +246,12 @@ export async function logoutRequest() {
   clearSession();
 }
 
-export function listFriends() {
-  return apiRequest<{ items: FriendUser[] }>("/api/v1/friends");
+export function listFriends(page?: number) {
+  return apiRequest<{ items: FriendUser[] }>("/api/v1/friends" + (page ? `?page=${page}&limit=24` : ""));
 }
 
-export function listReceivedFriendRequests() {
-  return apiRequest<{ items: FriendRequest[] }>("/api/v1/friends/requests");
+export function listReceivedFriendRequests(page?: number) {
+  return apiRequest<{ items: FriendRequest[]; total: number; hasNext: boolean }>("/api/v1/friends/requests" + (page ? `?page=${page}&limit=24` : ""));
 }
 
 export function listFriendSuggestions() {
@@ -285,4 +285,8 @@ export function unfriend(userId: string) {
   return apiRequest<null>(`/api/v1/friends/${userId}`, { method: "DELETE" });
 }
 
-export function listSentFriendRequests(){return apiRequest<{items:FriendRequest[]}>("/api/v1/friends/requests/sent");}
+export function listSentFriendRequests(page?: number){return apiRequest<{items:FriendRequest[]}>("/api/v1/friends/requests/sent" + (page ? `?page=${page}&limit=24` : ""));}
+
+export function listBlockedFriends() { return apiRequest<{items: FriendUser[]}>("/api/v1/friends/blocked"); }
+export function blockFriend(id: string) { return apiRequest(`/api/v1/friends/blocked/${id}`, {method: "POST"}); }
+export function unblockFriend(id: string) { return apiRequest(`/api/v1/friends/blocked/${id}`, {method: "DELETE"}); }

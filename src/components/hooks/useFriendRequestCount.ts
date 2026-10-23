@@ -5,7 +5,7 @@ import {useSocket} from "./useSocket";
 export default function useFriendRequestCount(){
  const [count,setCount]=useState(0);const socket=useSocket();
  useEffect(()=>{let cancelled=false;let running=false;
- const refresh=async()=>{if(running)return;running=true;try{const data=await listReceivedFriendRequests();if(!cancelled)setCount(data.items.length);}catch{}finally{running=false;}};
+ const refresh=async()=>{if(running)return;running=true;try{const data=await listReceivedFriendRequests(1);if(!cancelled)setCount(data.total);}catch{}finally{running=false;}};
  void refresh();const timer=setInterval(()=>{if(!document.hidden)void refresh();},15000);
  const update=()=>void refresh();
  socket?.on("friend_requests_changed",update);socket?.on("connect",update);

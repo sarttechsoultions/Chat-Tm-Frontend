@@ -9,6 +9,8 @@ import { UserAvatar } from "../ui/UserAvatar";
 import PostCard from "../home/PostCard";
 import { LocationPicker } from "../posts/PostExtras";
 import {
+  blockFriend,
+  unblockFriend,
   acceptFriendRequest,
   deleteFriendRequest,
   getSessionToken,
@@ -21,6 +23,7 @@ import {
 } from "../../lib/auth";
 import { createDirectConversation } from "../../lib/api/chat";
 import {
+  fetchProfileFriends,
   fetchMyProfile,
   fetchProfile,
   updateProfile,
@@ -74,30 +77,86 @@ export default function ProfileView({ username }: { username?: string }) {
   const [working, setWorking] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [unfriendOpen, setUnfriendOpen] = useState(false);
+  const [blockOpen, setBlockOpen] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [friendPage,setFriendPage]=useState(1);
+  const [friendQuery,setFriendQuery]=useState("");
+  const [friendResults,setFriendResults]=useState<{items:FriendUser[];total:number;page:number;hasNext:boolean}|null>(null);
+  const [friendsLoading,setFriendsLoading]=useState(false);
+  const [friendsError,setFriendsError]=useState("");
+  const [friendRevision,setFriendRevision]=useState(0);
+  const profileUsername=data?.user.username;
+  useEffect(()=>{
+    if(tab!=="friends"||!profileUsername)return;
+    let cancelled=false;
+    const timer=window.setTimeout(()=>{
+      setFriendsLoading(true);setFriendsError("");
+      void fetchProfileFriends(profileUsername,friendPage,friendQuery).then(result=>{if(!cancelled){setFriendResults(result);if(!result.items.length&&friendPage>1)setFriendPage(value=>value-1);}}).catch(error=>{if(!cancelled){setFriendResults(null);setFriendsError(error instanceof Error?error.message:"Unable to load friends.");}}).finally(()=>{if(!cancelled)setFriendsLoading(false);});
+    },friendQuery?200:0);
+    return()=>{cancelled=true;window.clearTimeout(timer);};
+  },[tab,profileUsername,friendPage,friendQuery,friendRevision]);
+  useEffect(()=>{
+    const refresh=()=>setFriendRevision(value=>value+1);
+    socket?.on("friend_requests_changed",refresh);socket?.on("connect",refresh);
+    window.addEventListener("chattm:friends-changed",refresh);
+    return()=>{socket?.off("friend_requests_changed",refresh);socket?.off("connect",refresh);window.removeEventListener("chattm:friends-changed",refresh);};
+  },[socket]);
 
   const load = useCallback(async () => {
+    setNotice("");
+    setFriendResults(null);setFriendPage(1);setFriendQuery("");
+    setBlockOpen(false);setUnfriendOpen(false);
     setLoading(true);
     setError("");
     try {
       const profile = username ? await fetchProfile(username) : await fetchMyProfile();
       setData(profile);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load profile.");
+      setData(null);
+      setError(err instanceof Error ? err.message : "Profile unavailable.");
     } finally {
       setLoading(false);
     }
   }, [username]);
 
   useEffect(() => {
-    void load();
+    const timer = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(timer);
   }, [load]);
 
   useEffect(()=>{
     let cancelled=false;
-    const sync=()=>{void (username?fetchProfile(username):fetchMyProfile()).then(profile=>{if(!cancelled)setData(prev=>prev?{...prev,friendship:profile.friendship,stats:profile.stats,friends:profile.friends}:profile);}).catch(()=>{});};
+    const sync=()=>{void (username?fetchProfile(username):fetchMyProfile()).then(profile=>{if(!cancelled)setData(prev=>prev?{...prev,...profile}:profile);}).catch(()=>{if(!cancelled){setData(null);setError("Profile unavailable.");}});};
     socket?.on("friend_requests_changed",sync);
     return()=>{cancelled=true;socket?.off("friend_requests_changed",sync);};
   },[socket,username]);
+
+  async function handleBlockAction() {
+    if (!data || data.isOwn || working) return;
+    const unblocking = data.friendship.status === "BLOCKED" && data.friendship.canUnblock;
+    if (data.friendship.status === "BLOCKED" && !unblocking) return;
+    setWorking(true);
+    setError("");
+    setNotice("");
+    try {
+      if (unblocking) await unblockFriend(data.user.id);
+      else await blockFriend(data.user.id);
+      setBlockOpen(false);
+      setData(prev => prev ? {
+        ...prev,
+        friendship: unblocking ? { status: "NONE", requestId: null } : { status: "BLOCKED", requestId: null, canUnblock: true },
+        stats: { ...prev.stats, friends: Math.max(0, prev.stats.friends - (prev.friendship.status === "FRIENDS" ? 1 : 0)) },
+        friends: unblocking ? prev.friends : prev.friends.filter(friend => friend.id !== getStoredUser()?.id),
+      } : prev);
+      setNotice(unblocking ? "User unblocked. You can send a new friend request." : "User blocked. Direct messages and new calls are restricted.");
+      window.dispatchEvent(new Event("chattm:friends-changed"));
+      const profile = await (username ? fetchProfile(username) : fetchMyProfile()).catch(() => null);
+      if (profile) setData(profile);
+    } catch (err) {
+      setBlockOpen(false);
+      setError(err instanceof Error ? err.message : "Unable to update block status.");
+    } finally { setWorking(false); }
+  }
 
   async function handleFriendAction() {
     if (!data || working) return;
@@ -187,6 +246,9 @@ export default function ProfileView({ username }: { username?: string }) {
     );
   }
 
+  if (data.friendship.status === "BLOCKED") {
+    return <section className="mx-auto max-w-[820px] rounded-2xl border border-gray-100 bg-white p-8 text-center"><h1 className="text-lg font-semibold text-gray-900">Profile unavailable</h1><p className="mt-2 text-sm text-gray-500">This profile’s content is not available.</p>{data.friendship.canUnblock && <Link href="/friends/blocked" className="mt-4 inline-block text-sm font-medium text-[#00696F]">Manage blocked users</Link>}</section>;
+  }
   const { user, isOwn, friendship, stats, friends, photos, posts } = data;
   const tabs: { id: Tab; label: string }[] = [
     { id: "posts", label: "Posts" },
@@ -208,7 +270,7 @@ export default function ProfileView({ username }: { username?: string }) {
 
         <div className="relative px-4 pb-5 sm:px-8">
           <div className="-mt-12 flex flex-col gap-4 sm:-mt-16 sm:flex-row sm:items-end sm:justify-between">
-            <div className="flex items-end gap-3 sm:gap-4">
+            <div className="flex min-w-0 flex-col items-start gap-3 sm:flex-row sm:items-end sm:gap-4">
               <div className="rounded-full border-4 border-white bg-white">
                 <UserAvatar avatarUrl={user.avatar} name={fullName(user)} size="size-20 sm:size-28 lg:size-32" />
               </div>
@@ -245,14 +307,18 @@ export default function ProfileView({ username }: { username?: string }) {
                 </>
               ) : (
                 <>
-                  <FriendButton
+                  {friendship.status !== "BLOCKED" && <FriendButton
                     status={friendship.status}
                     working={working}
                     onClick={() => {
                       if (friendship.status === "FRIENDS") setUnfriendOpen(true);
                       else void handleFriendAction();
                     }}
-                  />
+                  />}
+                  {friendship.status === "BLOCKED" ? (
+                    friendship.canUnblock ? <button type="button" disabled={working} onClick={() => void handleBlockAction()} className="rounded-lg border border-[#DCE5E6] px-4 py-2 text-sm font-semibold text-[#00696F] disabled:opacity-60">{working ? "Please wait…" : "Unblock"}</button>
+                    : <span className="rounded-lg bg-gray-100 px-4 py-2 text-sm text-gray-500">Connection unavailable</span>
+                  ) : <button type="button" disabled={working} onClick={() => { setError(""); setBlockOpen(true); }} className="rounded-lg border border-red-100 bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-100 disabled:opacity-60">Block</button>}
                   {friendship.status==="PENDING_IN"&&<button disabled={working} onClick={async()=>{if(!friendship.requestId)return;setWorking(true);try{await deleteFriendRequest(friendship.requestId);setData(prev=>prev?{...prev,friendship:{status:"NONE",requestId:null}}:prev);window.dispatchEvent(new Event("chattm:friends-changed"));}catch(error){setError(error instanceof Error?error.message:"Unable to delete request");}finally{setWorking(false);}}} className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-semibold">Delete request</button>}
                   {friendship.status === "FRIENDS" ? (
                     <button
@@ -277,7 +343,8 @@ export default function ProfileView({ username }: { username?: string }) {
             </p>
           ) : null}
 
-          {error ? <p className="mt-3 text-[13px] text-red-600">{error}</p> : null}
+          {notice ? <p role="status" className="mt-3 rounded-lg bg-[#E8F4F3] px-3 py-2 text-sm text-[#00696F]">{notice}</p> : null}
+          {error ? <p role="alert" className="mt-3 text-[13px] text-red-600">{error}</p> : null}
 
           <nav className="mt-5 flex gap-4 overflow-x-auto no-scrollbar border-t border-[#E5E7EB] sm:gap-5">
             {tabs.map((item) => (
@@ -344,27 +411,20 @@ export default function ProfileView({ username }: { username?: string }) {
         ) : null}
 
         {tab === "friends" ? (
-          <div className="rounded-[16px] bg-white p-6 shadow-[0_1px_4px_rgba(0,0,0,0.08)]">
-            <div className="mb-4 flex items-center justify-between">
-              <div><h2 className="text-[18px] font-bold">Friends <span className="ml-2 rounded-full bg-[#E8F4F3] px-2.5 py-1 text-xs font-semibold text-[#00696F]">{stats.friends}</span></h2><p className="mt-1 text-sm text-[#6B7280]">People connected with {isOwn ? "you" : user.firstName}</p></div>
-              
+          <section aria-label="Profile friends" className="rounded-2xl bg-white p-4 shadow-sm sm:p-6">
+            <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div><h2 className="text-lg font-bold">Friends <span className="ml-2 rounded-full bg-[#E8F4F3] px-2.5 py-1 text-xs font-semibold text-[#00696F]">{stats.friends}</span></h2><p className="mt-1 text-sm text-gray-500">People connected with {isOwn ? "you" : user.firstName}</p></div>
+              <input aria-label="Search profile friends" maxLength={100} value={friendQuery} onChange={event=>{setFriendQuery(event.target.value);setFriendPage(1);setFriendsLoading(true);}} placeholder="Search friends…" className="w-full rounded-xl border border-[#E1E9EA] px-3 py-2.5 text-sm outline-[#00696F] sm:w-52"/>
             </div>
-            {friends.length ? (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {friends.map((friend) => (
-                  <Link
-                    key={friend.id}
-                    href={`/profile/${friend.username}`}
-                    className="group flex min-w-0 items-center gap-4 rounded-xl border border-[#E7ECEF] bg-white p-4 transition hover:border-[#9FC9CC] hover:bg-[#F5FAFA] hover:shadow-sm focus-visible:outline-2 focus-visible:outline-[#00696F]"
-                  >
-                    <div className="shrink-0"><UserAvatar avatarUrl={friend.avatar} name={friendName(friend)} size={64}/></div><div className="min-w-0 flex-1"><p className="truncate text-[15px] font-semibold text-[#0B1C30]">{friendName(friend)}</p><p className="mt-1 truncate text-[13px] text-[#6B7280]">@{friend.username}</p><span className="mt-2 block text-xs font-medium text-[#00696F]">View profile</span></div>
-                  </Link>
-                ))}
+            {friendsError ? <p role="alert" className="py-6 text-center text-sm text-red-600">{friendsError}</p> : friendsLoading ? <p role="status" className="py-8 text-center text-sm text-gray-500">Loading friends…</p> : (friendResults?.items ?? friends).length ? (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {(friendResults?.items ?? friends).map(friend=><Link key={friend.id} href={"/profile/"+encodeURIComponent(friend.username)} className="flex min-w-0 items-center gap-3 rounded-xl border border-[#E7ECEF] bg-white p-3 transition hover:border-[#9FC9CC] hover:bg-[#F5FAFA] focus-visible:outline-2 focus-visible:outline-[#00696F]">
+                  <UserAvatar avatarUrl={friend.avatar} name={friendName(friend)} size={48}/><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-[#0B1C30]">{friendName(friend)}</p><p className="mt-1 truncate text-xs text-gray-500">@{friend.username}</p><span className="mt-1 block text-xs font-medium text-[#00696F]">View profile</span></div>
+                </Link>)}
               </div>
-            ) : (
-              <p className="py-6 text-center text-[14px] text-[#6B7280]">No friends to show.</p>
-            )}
-          </div>
+            ) : <p className="py-8 text-center text-sm text-gray-500">{friendQuery?"No matching friends.":"No friends to show."}</p>}
+            {(friendPage>1||(friendResults?.hasNext??stats.friends>12)) && !friendsError && <nav aria-label="Profile friends pages" className="mt-5 flex items-center justify-center gap-4 text-sm"><button disabled={friendsLoading||friendPage===1} onClick={()=>{setFriendsLoading(true);setFriendPage(value=>value-1);}} className="rounded-lg bg-gray-100 px-3 py-2 disabled:opacity-40">Previous</button><span>Page {friendPage}</span><button disabled={friendsLoading||!(friendResults?.hasNext??stats.friends>12)} onClick={()=>{setFriendsLoading(true);setFriendPage(value=>value+1);}} className="rounded-lg bg-gray-100 px-3 py-2 disabled:opacity-40">Next</button></nav>}
+          </section>
         ) : null}
 
         {tab === "photos" ? (
@@ -431,34 +491,29 @@ export default function ProfileView({ username }: { username?: string }) {
         />
       ) : null}
 
-      {unfriendOpen ? (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-[380px] rounded-[16px] bg-white p-6">
-            <h3 className="text-[18px] font-bold">Unfriend {fullName(user)}?</h3>
-            <p className="mt-2 text-[14px] text-[#6B7280]">
-              You will no longer be friends. You can send a new request later.
-            </p>
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setUnfriendOpen(false)}
-                className="rounded-[8px] bg-[#F3F4F6] py-2.5 text-[14px] font-bold text-[#4B5563]"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleUnfriend()}
-                className="rounded-[8px] bg-[#DC2626] py-2.5 text-[14px] font-bold text-white"
-              >
-                Unfriend
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      {blockOpen && <ProfileConnectionDialog name={fullName(user)} working={working} onClose={() => setBlockOpen(false)} onConfirm={() => void handleBlockAction()} />}
+      {unfriendOpen && <ProfileConnectionDialog action="unfriend" name={fullName(user)} working={working} onClose={() => setUnfriendOpen(false)} onConfirm={() => void handleUnfriend()} />}
+
     </div>
   );
+}
+
+function ProfileConnectionDialog({ name, working, onClose, onConfirm, action = "block" }: { name: string; working: boolean; onClose: () => void; onConfirm: () => void; action?: "block" | "unfriend" }) {
+  const label = action === "unfriend" ? "Unfriend" : "Block";
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const element = dialog.current;
+    element?.showModal();
+    return () => element?.close();
+  }, []);
+  return <dialog ref={dialog} aria-labelledby="block-profile-title" aria-describedby="block-profile-description" onCancel={event => { event.preventDefault(); if (!working) onClose(); }} className="fixed inset-0 m-auto w-[calc(100%_-_2rem)] max-w-sm rounded-2xl border-0 bg-white p-6 shadow-xl backdrop:bg-black/40">
+    <h3 id="block-profile-title" className="text-lg font-bold text-[#111827]">{label} {name}?</h3>
+    <p id="block-profile-description" className="mt-2 text-sm leading-6 text-gray-600">{action === "unfriend" ? "You will no longer be friends. You can send a new request later." : "This removes your friendship or pending request and stops direct messages and new calls. You can unblock them later. Unblocking will not restore your friendship."}</p>
+    <div className="mt-6 grid grid-cols-2 gap-3">
+      <button type="button" autoFocus disabled={working} onClick={onClose} className="rounded-lg bg-gray-100 py-2.5 text-sm font-semibold text-gray-700 disabled:opacity-60">Cancel</button>
+      <button type="button" disabled={working} onClick={onConfirm} className="rounded-lg bg-red-600 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60">{working ? "Please wait…" : label}</button>
+    </div>
+  </dialog>;
 }
 
 function Row({ label, value }: { label: string; value: string }) {

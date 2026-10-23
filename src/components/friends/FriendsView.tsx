@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  blockFriend, listBlockedFriends, unblockFriend,
   acceptFriendRequest,
   ApiError,
   deleteFriendRequest,
@@ -23,11 +24,12 @@ import { useRouter } from "next/navigation";
 import { UserAvatar } from "../ui/UserAvatar";
 import { createDirectConversation } from "../../lib/api/chat";
 
-type FriendTab = "sent" | "all" | "online" | "requests" | "suggestions";
+type FriendTab = "blocked" | "sent" | "all" | "online" | "requests" | "suggestions";
 const tabs: { id: FriendTab; label: string; href: string }[] = [
   { id: "requests", label: "Friend Requests", href: "/friends/requests" },
   { id: "suggestions", label: "Suggestions", href: "/friends/suggestions" },
   { id: "sent", label: "Sent Requests", href: "/friends/sent" },
+  { id: "blocked", label: "Blocked", href: "/friends/blocked" },
 ];
 
 const nameOf = (user: FriendUser) =>
@@ -72,7 +74,7 @@ function FriendListSkeleton({ cards = 4 }: { cards?: number }) {
 
 function FriendGridSkeleton({ cards = 3 }: { cards?: number }) {
   return (
-    <div aria-label="Loading friends" aria-busy="true" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div aria-label="Loading friends" aria-busy="true" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {Array.from({ length: cards }).map((_, index) => (
         <div key={index} className="animate-pulse rounded-[12px] bg-white p-4 shadow-[0_0_4px_rgba(0,0,0,0.14)]">
           <div className="mx-auto size-16 rounded-full bg-[#EEF2F7]" />
@@ -85,7 +87,19 @@ function FriendGridSkeleton({ cards = 3 }: { cards?: number }) {
   );
 }
 
+  const hiddenSuggestionKey=()=> "chattm:hidden-suggestions:"+(getStoredUser()?.id||"anonymous");
+  const hiddenSuggestions=():string[]=>{
+    try{const ids=JSON.parse(localStorage.getItem(hiddenSuggestionKey())||"[]");return Array.isArray(ids)?ids.filter((id):id is string=>typeof id==="string"):[];}catch{return [];}
+  };
+  const filterSuggestions=(items:FriendUser[])=>{
+    const hidden=new Set(hiddenSuggestions());
+    return items.filter(user=>!hidden.has(user.id));
+  };
+
 export default function FriendsView({ tab }: { tab: FriendTab }) {
+  const [page, setPage] = useState(1);
+  const [requestTotal,setRequestTotal] = useState(0);
+  const [hasNext, setHasNext] = useState(false);
   const [friends, setFriends] = useState<FriendUser[]>([]);
   const [showAllRequests,setShowAllRequests]=useState(false);
   const [outgoing,setOutgoing]=useState<FriendRequest[]>([]);
@@ -105,14 +119,6 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
   const router = useRouter();
   const socket=useSocket();
 
-  const hiddenSuggestionKey=()=> "chattm:hidden-suggestions:"+(getStoredUser()?.id||"anonymous");
-  const hiddenSuggestions=():string[]=>{
-    try{const ids=JSON.parse(localStorage.getItem(hiddenSuggestionKey())||"[]");return Array.isArray(ids)?ids.filter((id):id is string=>typeof id==="string"):[];}catch{return [];}
-  };
-  const filterSuggestions=(items:FriendUser[])=>{
-    const hidden=new Set(hiddenSuggestions());
-    return items.filter(user=>!hidden.has(user.id));
-  };
   const removeSuggestion=async(id:string)=>{
     setWorking(id);
     setError("");
@@ -145,17 +151,22 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
     if(!silent)setLoading(true);
     setError("");
     try {
-      const sent=await listSentFriendRequests();
+      const sent = tab === "sent" ? await listSentFriendRequests(page) : { items: [] };
+      if (tab === "sent") setHasNext(sent.items.length === 24);
       setOutgoing(sent.items);
       setSentRequests(Object.fromEntries(sent.items.map(row=>[row.user.id,row.id])));
       if (tab === "requests") {
-        const [received,suggested]=await Promise.all([listReceivedFriendRequests(),listFriendSuggestions()]);
+        const [received,suggested]=await Promise.all([listReceivedFriendRequests(page),listFriendSuggestions()]);
+        setHasNext(received.hasNext);
+        setRequestTotal(received.total);
+        if (!received.items.length && page > 1) setPage(value=>value-1);
         setRequests([...received.items].sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime()));
         setSuggestions(filterSuggestions(suggested.items));
       }
       else if (tab === "suggestions")
         setSuggestions(filterSuggestions((await listFriendSuggestions()).items));
-      else if(tab!=="sent") setFriends((await listFriends()).items);
+      else if(tab === "blocked") { setFriends((await listBlockedFriends()).items); setHasNext(false); }
+      else if(tab!=="sent") { const result = await listFriends(page); setFriends(result.items); setHasNext(result.items.length === 24); }
     } catch (err) {
       setError(
         err instanceof ApiError
@@ -165,7 +176,7 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
     } finally {
       if(!silent)setLoading(false);
     }
-  }, [tab]);
+  }, [tab, page]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -183,6 +194,19 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
     window.addEventListener("focus",update);
     return()=>{socket?.off("friend_requests_changed",update);socket?.off("connect",update);window.removeEventListener("focus",update);};
   },[socket,refresh]);
+  useEffect(() => {
+    if (!socket) return;
+    const updatePresence = ({ userId, isOnline }: { userId: string; isOnline: boolean }) => {
+      const update = (users: FriendUser[]) => users.map(user => user.id === userId ? { ...user, isOnline } : user);
+      setFriends(update);
+      setSuggestions(update);
+      setMutualPeople(update);
+      setRequests(rows => rows.map(row => ({ ...row, user: row.user.id === userId ? { ...row.user, isOnline } : row.user })));
+      setOutgoing(rows => rows.map(row => ({ ...row, user: row.user.id === userId ? { ...row.user, isOnline } : row.user })));
+    };
+    socket.on("user_presence_changed", updatePresence);
+    return () => { socket.off("user_presence_changed", updatePresence); };
+  }, [socket]);
   const visibleFriends = useMemo(
     () =>
       (tab === "online" ? friends.filter((item) => item.isOnline) : friends).filter(
@@ -192,14 +216,14 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
   );
 
   const title =
-    tab === "sent" ? "Sent Requests" : tab === "requests"
+    tab === "blocked" ? "Blocked Users" : tab === "sent" ? "Sent Requests" : tab === "requests"
       ? "Friend Requests"
       : tab === "suggestions"
       ? "Suggestions"
       : "Friends";
 
   const subtitle =
-    tab === "sent" ? "Manage requests you have sent." : tab === "online"
+    tab === "blocked" ? "Unblock someone to allow a new friend request. Unblocking does not restore friendship." : tab === "sent" ? "Manage requests you have sent." : tab === "online"
       ? "See who's active and ready to chat."
       : tab === "requests"
       ? "Manage your pending connections."
@@ -295,33 +319,33 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
   }
 
   return (
-    <section className="mx-auto w-full max-w-[906px] min-h-full rounded-[12px] bg-[#F9FAFB] px-3 pb-8 pt-[10px] shadow-[0_0_4px_rgba(0,0,0,0.25)] sm:px-8">
-      <header className="sticky -top-2.5 z-20 -mx-3 border-b border-[#E5E7EB] bg-[#F9FAFB] px-3 pt-2.5 sm:-mx-8 sm:px-8">
+    <section className="mx-auto w-full max-w-[906px] rounded-2xl border border-[#E5EBEC] bg-white px-4 pb-6 pt-6 shadow-[0_4px_24px_rgba(18,57,60,0.04)] sm:px-7 sm:pt-7">
+      <header className="border-b border-[#EDF1F2] pb-5">
         <h1 className="text-[22px] font-bold leading-8 text-[#111827] sm:text-[24px]">
           {title}
         </h1>
         <p className="mt-1 text-[14px] leading-5 text-[#6B7280]">{subtitle}</p>
         <nav
           aria-label="Friends sections"
-          className="mt-5 flex gap-5 overflow-x-auto no-scrollbar whitespace-nowrap sm:gap-8"
+          className="mt-5 flex flex-wrap gap-1.5 rounded-xl bg-[#F4F7F7] p-1.5"
         >
           {tabs.map((item) => (
             <Link
               key={item.id}
               href={item.href}
-              className={`flex items-center gap-2 border-b-2 px-1 pb-[18px] pt-4 text-[14px] font-medium ${
+              className={`flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors sm:flex-1 ${
                 item.id === tab
-                  ? "border-[#00696F] text-[#00696F]"
-                  : "border-transparent text-[#6B7280] hover:text-[#00696F]"
+                  ? "bg-white text-[#00696F] shadow-sm"
+                  : "text-[#647478] hover:bg-white/70 hover:text-[#00696F]"
               }`}
             >
               {item.label}
               {item.id === "online" ? (
                 <span className="size-2 rounded-full bg-[#16A34A]" />
               ) : null}
-              {item.id === "requests" && requests.length ? (
+              {item.id === "requests" && requestTotal ? (
                 <span className="rounded-full bg-[#F3F4F6] px-2 py-0.5 text-[12px] text-[#4B5563]">
-                  {requests.length}
+                  {requestTotal}
                 </span>
               ) : null}
             </Link>
@@ -348,10 +372,10 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
 
       {tab === "requests" ? (
         <div className="mt-6">
-          <div className="mb-4 flex justify-between">
+          <div className="mb-4 flex items-center justify-between">
             <h2 className="text-[18px] font-bold">Friend Requests</h2>
-            <span className="rounded-full bg-[#E8F4F3] px-3 py-1 text-[12px] font-bold text-[#00696F]">
-              {requests.length} New
+            <span className="rounded-full bg-[#E8F4F3] px-3 py-1 text-[12px] font-semibold text-[#00696F]">
+              {requestTotal} Pending
             </span>
           </div>
           {loading ? (
@@ -414,7 +438,12 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
               ))}
             </div>
           ) : (
-            <State loading={false} message="No pending friend requests." />
+            <div className="flex items-center gap-4 rounded-xl border border-dashed border-[#D7E5E5] bg-[#F7FAFA] px-5 py-6">
+              <span aria-hidden="true" className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#E6F1F0] text-[#00696F]">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3a4 4 0 0 1 0 8M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg>
+              </span>
+              <div><p className="text-sm font-semibold text-[#243D40]">You’re all caught up</p><p className="mt-1 text-sm text-[#748487]">New friend requests will appear here.</p></div>
+            </div>
           )}
           {requests.length>3&&<button type="button" onClick={()=>setShowAllRequests(value=>!value)} className="mt-5 w-full rounded-lg bg-[#E8F4F3] px-4 py-3 text-sm font-semibold text-[#00696F]">{showAllRequests?"Show less":"View all ("+requests.length+")"}</button>}
         </div>
@@ -424,7 +453,7 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
       {tab==="sent"&&(loading?<FriendListSkeleton/>:outgoing.length===0?<State loading={false} message="No pending sent requests."/>:null)}
       {tab === "suggestions" || tab === "requests" ? (
         <div className="mt-6">
-          <h2 className="mb-4 text-[18px] font-bold">People You May Know</h2>
+          <div className="mb-4 flex items-center justify-between gap-3"><div><h2 className="text-[18px] font-semibold text-[#182F32]">People you may know</h2><p className="mt-1 text-[13px] text-[#748487]">Make a new connection in your community.</p></div>{tab === "requests" && <Link href="/friends/suggestions" className="shrink-0 text-sm font-medium text-[#00696F] hover:underline">View all</Link>}</div>
           {loading ? (
             <FriendGridSkeleton />
           ) : suggestions.length ? (
@@ -435,17 +464,17 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
                 return (
                   <article
                     key={user.id}
-                    className="grid grid-cols-[76px_minmax(0,1fr)] items-center gap-x-3 bg-white py-3 text-left sm:block sm:rounded-xl sm:p-[17px] sm:text-center sm:shadow-sm"
+                    className="grid grid-cols-[64px_minmax(0,1fr)] items-center gap-x-4 rounded-xl border border-[#E5EBEC] bg-white p-4 text-left transition-shadow hover:shadow-md sm:block sm:p-5 sm:text-center"
                   >
                     <div className="row-span-3 w-fit self-center sm:mx-auto sm:mb-3">
                       <UserAvatar
                         avatarUrl={user.avatar}
                         name={nameOf(user)}
-                        size="size-[76px] sm:size-24"
+                        size="size-16 sm:size-20"
                         isOnline={user.isOnline}
                       />
                     </div>
-                    <h3 className="font-bold">{nameOf(user)}</h3>
+                    <h3 className="truncate text-[15px] font-semibold text-[#182F32]">{nameOf(user)}</h3>
                     <button type="button" disabled={!user.mutualFriends} onClick={()=>void showMutualFriends(user)} className="text-left text-[12px] text-[#3C494A] enabled:hover:underline disabled:cursor-default sm:text-center">
                       {user.mutualFriends} mutual friends
                     </button>
@@ -460,7 +489,7 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
                       className={`w-full rounded-[8px] py-2 text-[14px] font-bold disabled:opacity-60 ${
                         sent
                           ? "bg-[#F3F4F6] text-[#4B5563]"
-                          : "bg-[rgba(0,105,111,0.1)] text-[#00696F]"
+                          : "bg-[#00696F] text-white hover:bg-[#00565B]"
                       }`}
                     >
                       {working === user.id
@@ -470,7 +499,7 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
                         : sent
                           ? "Request Sent"
                           : "Add Friend"}
-                    </button><button type="button" disabled={working===user.id} onClick={()=>void removeSuggestion(user.id)} className="w-full rounded-lg bg-[#E4E6EB] px-3 py-2 text-xs font-semibold text-[#1c1e21]">Remove</button></div>
+                    </button><button type="button" disabled={working===user.id} onClick={()=>void removeSuggestion(user.id)} className="w-full rounded-lg border border-[#E1E8E9] bg-white px-3 py-2 text-xs font-medium text-[#637478] hover:bg-[#F4F7F7]">Remove</button></div>
                   </article>
                 );
               })}
@@ -481,18 +510,18 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
         </div>
       ) : null}
 
-      {tab === "all" || tab === "online" ? (
+      {tab === "all" || tab === "online" || tab === "blocked" ? (
         <div className="mt-6">
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-[18px] font-bold">
               {tab === "online"
                 ? `${visibleFriends.length} Online`
-                : `All Friends (${friends.length})`}
+                : tab === "blocked" ? `Blocked Users (${friends.length})` : `All Friends (${friends.length} on this page)`}
             </h2>
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search friends..."
+              placeholder="Search this page..."
               className="h-10 w-full rounded-[8px] border border-[#D8D2D2] bg-white px-3 text-[14px] outline-none focus:border-[#00696F] sm:w-[240px]"
             />
           </div>
@@ -520,18 +549,20 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
                     </div>
                   </div>
                   <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:shrink-0">
+                    {tab !== "blocked" && <button disabled={working === user.id} onClick={() => { if (window.confirm(`Block ${nameOf(user)}? This removes your connection and stops direct messages and new calls.`)) void act(user.id, () => blockFriend(user.id), "User blocked."); }} className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">Block</button>}
                     <button
                       type="button"
                       disabled={working === user.id}
-                      onClick={() => void handleMessageClick(user.id)}
+                      onClick={() => tab === "blocked" ? void act(user.id, () => unblockFriend(user.id), "User unblocked. Send a new request to reconnect.") : void handleMessageClick(user.id)}
                       className="rounded-[8px] bg-[rgba(0,105,111,0.1)] px-3 py-2 text-[14px] font-bold text-[#00696F] transition hover:bg-[rgba(0,105,111,0.2)] disabled:opacity-60 sm:px-4"
                     >
-                      {working === user.id ? "Opening..." : "Message"}
+                      {working === user.id ? "Opening..." : tab === "blocked" ? "Unblock" : "Message"}
                     </button>
                     <button
                       type="button"
-                      disabled={working === user.id}
-                      onClick={() => setUnfriendTarget(user)}
+                      hidden={tab === "blocked"}
+                      disabled={working === user.id || tab === "blocked"}
+                      onClick={() => tab === "blocked" ? undefined : setUnfriendTarget(user)}
                       className="rounded-[8px] bg-[#F3F4F6] px-3 py-2 text-[14px] font-bold text-[#4B5563] transition hover:bg-gray-200 disabled:opacity-60"
                     >
                       Unfriend
@@ -553,6 +584,11 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
         </div>
       ) : null}
 
+      {tab !== "suggestions" && tab !== "blocked" && (page > 1 || hasNext) && <nav aria-label="Friends pages" className="mt-6 flex items-center justify-center gap-4">
+        <button disabled={loading || page === 1} onClick={() => setPage(value => value - 1)} className="rounded-lg bg-white px-4 py-2 disabled:opacity-40">Previous</button>
+        <span>Page {page}</span>
+        <button disabled={loading || !hasNext} onClick={() => setPage(value => value + 1)} className="rounded-lg bg-white px-4 py-2 disabled:opacity-40">Next</button>
+      </nav>}
       {unfriendTarget ? (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 px-4">
           <div

@@ -12,12 +12,7 @@ import { UserAvatar } from "../ui/UserAvatar";
 import { useAppShell } from "./AppShellContext";
 import { displayName, meRequest } from "../../lib/auth";
 import { useCurrentUser } from "../hooks/useCurrentUser";
-import { useSocket } from "../hooks/useSocket";
-import {
-  fetchUnreadCount,
-  UNREAD_CHANGED_EVENT,
-} from "../../lib/api/chat";
-
+import useUnreadCount from "../hooks/useUnreadCount";
 const NAV_ICONS = [
   { label: "Home", icon: "/figma/icons/nav-home.svg", href: "/" },
   { label: "Friends", icon: "/figma/icons/nav-groups.svg", href: "/friends" },
@@ -42,56 +37,18 @@ export default function Navbar() {
   const router=useRouter();
   const { searchOpen, toggleSearch, closeSearch } = useAppShell();
   const [searchQuery,setSearchQuery]=React.useState("");
-  React.useEffect(()=>{setSearchQuery("");},[pathname]);
-  React.useEffect(()=>{if(!searchOpen)setSearchQuery("");},[searchOpen]);
+  React.useEffect(()=>{const timer=window.setTimeout(()=>setSearchQuery(""),0);return()=>window.clearTimeout(timer);},[pathname]);
+  React.useEffect(()=>{if(searchOpen)return;const timer=window.setTimeout(()=>setSearchQuery(""),0);return()=>window.clearTimeout(timer);},[searchOpen]);
   const searchBox=React.useRef<HTMLDivElement>(null);
   React.useEffect(()=>{if(!searchOpen)return;const outside=(event:PointerEvent)=>{if(!searchBox.current?.contains(event.target as Node))closeSearch();};document.addEventListener("pointerdown",outside);return()=>document.removeEventListener("pointerdown",outside);},[searchOpen,closeSearch]);
 
-  const socket = useSocket();
+
   const currentUser = useCurrentUser();
   const user = currentUser
     ? { name: displayName(currentUser), avatar: currentUser.avatar || "" }
     : null;
-  const [unread, setUnread] = React.useState(0);
-
-  const refreshUnread = React.useCallback(() => {
-    fetchUnreadCount()
-      .then(setUnread)
-      .catch(() => undefined);
-  }, []);
-
-  React.useEffect(() => {
-    void meRequest().catch(() => undefined);
-  }, []);
-
-  React.useEffect(() => {
-    refreshUnread();
-  }, [pathname, refreshUnread]);
-
-  React.useEffect(() => {
-    const onChanged = () => refreshUnread();
-    window.addEventListener(UNREAD_CHANGED_EVENT, onChanged);
-    window.addEventListener("focus", onChanged);
-    return () => {
-      window.removeEventListener(UNREAD_CHANGED_EVENT, onChanged);
-      window.removeEventListener("focus", onChanged);
-    };
-  }, [refreshUnread]);
-
-  React.useEffect(() => {
-    if (!socket) return;
-
-    const onIncoming = () => refreshUnread();
-    socket.on("new_message", onIncoming);
-    socket.on("new_message_notification", onIncoming);
-    socket.on("conversation_upserted", onIncoming);
-
-    return () => {
-      socket.off("new_message", onIncoming);
-      socket.off("new_message_notification", onIncoming);
-      socket.off("conversation_upserted", onIncoming);
-    };
-  }, [socket, refreshUnread]);
+  const unread = useUnreadCount();
+  React.useEffect(() => { void meRequest().catch(() => undefined); }, []);
 
   return (
     <header className="sticky top-0 z-50 flex min-h-[48px] sm:min-h-[56px] w-full flex-col bg-white shadow-[0px_4px_10px_0px_rgba(0,0,0,0.12)]">

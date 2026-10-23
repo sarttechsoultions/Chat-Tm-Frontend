@@ -125,6 +125,7 @@ export default function PostCard({
   const [error, setError] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
   const commentInputRef = useRef<HTMLInputElement>(null);
+  const commentListRef = useRef<HTMLUListElement>(null);
   const router = useRouter();
   const me = useCurrentUser();
   const isOwner = me?.id === post.author.id;
@@ -227,7 +228,8 @@ export default function PostCard({
     setError("");
     try {
       const created = await addPostComment(post.id, body);
-      setComments((prev) => [...prev, created]);
+      setComments((prev) => [created, ...prev]);
+      commentListRef.current?.scrollTo({top:0,behavior:"smooth"});
       setPost((prev) => ({ ...prev, commentsCount: prev.commentsCount + 1 }));
       setCommentDraft("");
       playCommentSound();
@@ -565,7 +567,7 @@ export default function PostCard({
           {loadingComments ? (
             <p className="py-2 text-[13px] text-[#6B7280]">Loading comments…</p>
           ) : comments.length ? (
-            <ul className="flex max-h-[280px] flex-col gap-3 overflow-y-auto pb-3">
+            <ul ref={commentListRef} className="flex max-h-[280px] flex-col gap-3 overflow-y-auto pb-3">
               {comments.map((comment) => {
                 const name = authorName(comment.author);
                 return (

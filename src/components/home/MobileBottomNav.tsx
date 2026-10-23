@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, Plus } from "lucide-react";
 import { useAppShell } from "./AppShellContext";
-import { fetchUnreadCount, UNREAD_CHANGED_EVENT } from "../../lib/api/chat";
+import useUnreadCount from "../hooks/useUnreadCount";
 import React from "react";
 
 const ITEMS = [
@@ -42,21 +42,10 @@ export default function MobileBottomNav() {
   const friendRequests=useFriendRequestCount();
   const pathname = usePathname();
   const { openMenu } = useAppShell();
-  const [unread, setUnread] = React.useState(0);
+  const unread = useUnreadCount();
   const hide =
     pathname.startsWith("/call") ||
     pathname === "/create-story";
-
-  React.useEffect(() => {
-    const refresh = () => {
-      fetchUnreadCount()
-        .then(setUnread)
-        .catch(() => undefined);
-    };
-    refresh();
-    window.addEventListener(UNREAD_CHANGED_EVENT, refresh);
-    return () => window.removeEventListener(UNREAD_CHANGED_EVENT, refresh);
-  }, [pathname]);
 
   if (hide) return null;
 

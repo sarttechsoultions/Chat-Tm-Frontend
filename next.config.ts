@@ -4,6 +4,12 @@ const API_ORIGIN =
   process.env.API_ORIGIN || "http://localhost:5000";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    // Allow the backend's 50 MiB file limit plus multipart fields and boundaries.
+    proxyClientMaxBodySize: "55mb",
+    // Media uploads can wait for storage processing after the body is received.
+    proxyTimeout: 180_000,
+  },
   env: { NEXT_PUBLIC_SOCKET_ORIGIN: process.env.NEXT_PUBLIC_SOCKET_URL || API_ORIGIN },
   async rewrites() {
     return [
