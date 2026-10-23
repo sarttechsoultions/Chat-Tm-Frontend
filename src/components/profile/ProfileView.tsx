@@ -4,7 +4,7 @@ import {useSocket} from "../hooks/useSocket";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type InputHTMLAttributes, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Check, Globe, ImageIcon, Link2, Loader2, MapPin, Quote, User, UserRound, X } from "lucide-react";
+import { CalendarDays, Camera, Check, Globe, ImageIcon, Link2, Loader2, MapPin, Pencil, Quote, User, UserRound, X } from "lucide-react";
 import { UserAvatar } from "../ui/UserAvatar";
 import PostCard from "../home/PostCard";
 import { LocationPicker } from "../posts/PostExtras";
@@ -75,6 +75,7 @@ export default function ProfileView({ username }: { username?: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [working, setWorking] = useState(false);
+  const [coverSaving, setCoverSaving] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [unfriendOpen, setUnfriendOpen] = useState(false);
   const [blockOpen, setBlockOpen] = useState(false);
@@ -85,6 +86,24 @@ export default function ProfileView({ username }: { username?: string }) {
   const [friendsLoading,setFriendsLoading]=useState(false);
   const [friendsError,setFriendsError]=useState("");
   const [friendRevision,setFriendRevision]=useState(0);
+  const ownAsideRef=useRef<HTMLDivElement>(null);
+  const [ownAsidePosition,setOwnAsidePosition]=useState<{left:number;top:number;width:number;height:number}|null>(null);
+  useEffect(()=>{
+    if(tab!=="posts"||!data?.isOwn)return;
+    const wrapper=ownAsideRef.current;
+    const scroller=wrapper?.closest("main");
+    if(!wrapper||!scroller)return;
+    const update=()=>{
+      if(window.innerWidth<1024){setOwnAsidePosition(null);return;}
+      const rect=wrapper.getBoundingClientRect();
+      const top=scroller.getBoundingClientRect().top+16;
+      if(rect.top>top){setOwnAsidePosition(null);return;}
+      const height=wrapper.firstElementChild?.getBoundingClientRect().height||0;
+      setOwnAsidePosition(previous=>previous&&previous.left===rect.left&&previous.width===rect.width&&previous.top===top?previous:{left:rect.left,top,width:rect.width,height});
+    };
+    update();scroller.addEventListener("scroll",update,{passive:true});window.addEventListener("resize",update);
+    return()=>{scroller.removeEventListener("scroll",update);window.removeEventListener("resize",update);};
+  },[tab,data?.isOwn]);
   const profileUsername=data?.user.username;
   useEffect(()=>{
     if(tab!=="friends"||!profileUsername)return;
@@ -219,6 +238,20 @@ export default function ProfileView({ username }: { username?: string }) {
     }
   }
 
+  async function handleCoverSelected(file?: File) {
+    if (!file || coverSaving) return;
+    setCoverSaving(true);
+    setError("");
+    try {
+      const result = await updateProfile({ coverPhoto: file });
+      const saved = persistUser(result.user);
+      setData(previous => previous ? { ...previous, user: { ...previous.user, coverPhoto: saved.coverPhoto || previous.user.coverPhoto } } : previous);
+      setNotice("Cover photo updated.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not update cover photo.");
+    } finally { setCoverSaving(false); }
+  }
+
   if (loading) {
     return <div role="status" aria-label="Loading profile" aria-busy="true" className="mx-auto w-full max-w-[820px] space-y-5 pb-6">
       <span className="sr-only">Loading profile…</span>
@@ -251,28 +284,29 @@ export default function ProfileView({ username }: { username?: string }) {
   }
   const { user, isOwn, friendship, stats, friends, photos, posts } = data;
   const tabs: { id: Tab; label: string }[] = [
-    { id: "posts", label: "Posts" },
+    { id: "posts", label: isOwn ? "All" : "Posts" },
     { id: "about", label: "About" },
     { id: "friends", label: `Friends ${stats.friends}` },
     { id: "photos", label: "Photos" },
   ];
 
   return (
-    <div className="mx-auto w-full max-w-[820px] pb-4 sm:pb-10">
+    <div className={`mx-auto w-full pb-4 sm:pb-10 ${isOwn ? "max-w-[1180px]" : "max-w-[820px]"}`}>
       <section className="overflow-hidden rounded-[16px] bg-white shadow-[0_1px_4px_rgba(0,0,0,0.08)]">
-        <div className="relative h-[140px] bg-[#117378] sm:h-[180px] lg:h-[220px]">
+        <div className={`relative bg-[#117378] ${isOwn ? "h-[190px] sm:h-[290px] lg:h-[350px]" : "h-[140px] sm:h-[180px] lg:h-[220px]"}`}>
           {user.coverPhoto ? (
             <img src={user.coverPhoto} alt="" className="size-full object-cover" />
           ) : (
             <div className="size-full bg-[linear-gradient(135deg,#117378_0%,#00696F_55%,#0B1C30_100%)]" />
           )}
+          {isOwn && <><input id="profile-cover-photo" type="file" accept="image/*" className="absolute h-px w-px opacity-0" aria-label="Choose cover photo" disabled={coverSaving} onChange={event => { void handleCoverSelected(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }}/><label htmlFor="profile-cover-photo" aria-disabled={coverSaving} className={`absolute bottom-3 right-3 z-10 inline-flex cursor-pointer items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-[#14232D] shadow-sm hover:bg-[#F3F6F6] sm:bottom-4 sm:right-5 sm:text-sm ${coverSaving ? "pointer-events-none opacity-60" : ""}`}>{coverSaving ? <Loader2 size={15} className="animate-spin"/> : <Camera size={15}/>} {coverSaving ? "Saving…" : "Edit cover photo"}</label></>}
         </div>
 
         <div className="relative px-4 pb-5 sm:px-8">
           <div className="-mt-12 flex flex-col gap-4 sm:-mt-16 sm:flex-row sm:items-end sm:justify-between">
             <div className="flex min-w-0 flex-col items-start gap-3 sm:flex-row sm:items-end sm:gap-4">
               <div className="rounded-full border-4 border-white bg-white">
-                <UserAvatar avatarUrl={user.avatar} name={fullName(user)} size="size-20 sm:size-28 lg:size-32" />
+                <UserAvatar avatarUrl={user.avatar} name={fullName(user)} size={isOwn ? "size-24 sm:size-32 lg:size-40" : "size-20 sm:size-28 lg:size-32"} />
               </div>
               <div className="min-w-0 pb-1">
                 <div className="flex items-center gap-1.5">
@@ -291,19 +325,14 @@ export default function ProfileView({ username }: { username?: string }) {
             <div className="flex flex-wrap gap-2 pb-1">
               {isOwn ? (
                 <>
-                  <Link
-                    href="/create-post"
-                    className="rounded-[8px] bg-[#00696F] px-4 py-2 text-[14px] font-bold text-white"
-                  >
-                    Add post
-                  </Link>
                   <button
                     type="button"
                     onClick={() => setEditOpen(true)}
-                    className="rounded-[8px] bg-[#F3F4F6] px-4 py-2 text-[14px] font-bold text-[#111827]"
+                    className="inline-flex items-center gap-2 rounded-[8px] bg-[#E9EFF0] px-4 py-2 text-[14px] font-bold text-[#111827]"
                   >
-                    Edit profile
+                    <Pencil size={15}/> Edit profile
                   </button>
+                  <Link href="/create-post" className="rounded-[8px] bg-[#00696F] px-4 py-2 text-[14px] font-bold text-white">Create post</Link>
                 </>
               ) : (
                 <>
@@ -368,7 +397,16 @@ export default function ProfileView({ username }: { username?: string }) {
       {selectedPostId&&posts.find(post=>post.id===selectedPostId)&&<div role="dialog" aria-modal="true" aria-label="Post" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" onClick={()=>setSelectedPostId(null)}><div className="relative max-h-[90dvh] w-full max-w-[560px] overflow-y-auto rounded-2xl bg-white" onClick={e=>e.stopPropagation()}><button autoFocus aria-label="Close post" onClick={()=>setSelectedPostId(null)} className="sticky top-2 z-20 ml-auto mr-2 flex size-9 items-center justify-center rounded-full bg-white shadow"><X size={20}/></button><PostCard post={posts.find(post=>post.id===selectedPostId)!} compactMedia onDeleted={id=>{setData(prev=>prev?{...prev,posts:prev.posts.filter(post=>post.id!==id)}:prev);setSelectedPostId(null);}}/></div></div>}
       <div className="mt-5">
         {tab === "posts" ? (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          isOwn ? <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]">
+            <div ref={ownAsideRef} style={ownAsidePosition?{minHeight:ownAsidePosition.height}:undefined}>
+            <aside className="space-y-4" style={ownAsidePosition?{position:"fixed",left:ownAsidePosition.left,top:ownAsidePosition.top,width:ownAsidePosition.width,maxHeight:`calc(100dvh - ${ownAsidePosition.top+16}px)`,overflowY:"auto",zIndex:10}:undefined}>
+              <section className="rounded-2xl bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><h2 className="text-lg font-bold">Intro</h2><button type="button" onClick={() => setEditOpen(true)} aria-label="Edit intro" className="rounded-full p-2 text-[#00696F] hover:bg-[#E8F4F3]"><Pencil size={17}/></button></div><div className="mt-4 space-y-3 text-sm text-[#35434A]">{user.bio ? <p className="whitespace-pre-wrap break-words">{user.bio}</p> : <p className="text-[#7A878D]">Add a bio to introduce yourself.</p>}{user.location && <p className="flex items-center gap-2"><MapPin size={16} className="shrink-0 text-[#00696F]"/> Lives in {user.location}</p>}{user.website && <a href={user.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 break-all text-[#00696F] hover:underline"><Globe size={16} className="shrink-0"/>{user.website}</a>}</div></section>
+              <section className="rounded-2xl bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><h2 className="text-lg font-bold">Friends</h2><button type="button" onClick={() => setTab("friends")} className="text-sm font-semibold text-[#00696F]">See all friends</button></div><p className="mt-1 text-sm text-gray-500">{stats.friends} friends</p>{friends.length ? <div className="mt-4 grid grid-cols-3 gap-2">{friends.slice(0,9).map(friend => <Link key={friend.id} href={`/profile/${encodeURIComponent(friend.username)}`} className="min-w-0"><div className="aspect-square overflow-hidden rounded-lg"><UserAvatar avatarUrl={friend.avatar} name={friendName(friend)} size="size-full"/></div><p className="mt-1 truncate text-xs font-medium">{friendName(friend)}</p></Link>)}</div> : <p className="mt-4 text-sm text-gray-500">No friends to show yet.</p>}</section>
+              <section className="rounded-2xl bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><h2 className="text-lg font-bold">Photos</h2><button type="button" onClick={() => setTab("photos")} className="text-sm font-semibold text-[#00696F]">See all photos</button></div><p className="mt-1 text-sm text-gray-500">{stats.photos} photos</p>{photos.length ? <div className="mt-4 grid grid-cols-3 gap-1.5 overflow-hidden rounded-xl">{photos.slice(0,9).map(photo => <button key={photo.id} type="button" onClick={() => setSelectedPostId(photo.postId)} className="aspect-square overflow-hidden bg-[#E7EEEE]"><img src={photo.url} alt="Open photo post" loading="lazy" className="size-full object-cover"/></button>)}</div> : <p className="mt-4 text-sm text-gray-500">No photos yet.</p>}</section>
+            </aside>
+            </div>
+            <div className="min-w-0 max-w-[640px] space-y-4"><Link href="/create-post" className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm"><UserAvatar avatarUrl={user.avatar} name={fullName(user)} size={40}/><span className="flex-1 rounded-full bg-[#F1F4F5] px-4 py-3 text-sm text-[#68777D]">What&apos;s on your mind, {user.firstName}?</span></Link><div className="rounded-2xl bg-white px-5 py-4 text-lg font-bold shadow-sm">Posts <span className="ml-2 text-sm font-normal text-gray-500">{stats.posts}</span></div>{posts.length ? posts.map(post => <PostCard key={post.id} post={post} compactMedia onDeleted={id => setData(prev => prev ? {...prev, posts: prev.posts.filter(item => item.id !== id)} : prev)}/>) : <p className="rounded-2xl bg-white px-5 py-10 text-center text-sm text-gray-500">No posts yet.</p>}</div>
+          </div> : <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {isOwn ? (
               <Link
                 href="/create-post"
@@ -395,19 +433,13 @@ export default function ProfileView({ username }: { username?: string }) {
         ) : null}
 
         {tab === "about" ? (
-          <div className="rounded-[16px] bg-white p-6 shadow-[0_1px_4px_rgba(0,0,0,0.08)]">
-            <h2 className="mb-4 text-[18px] font-bold">About</h2>
-            <dl className="flex flex-col gap-3 text-[14px]">
-              <Row label="Bio" value={user.bio || "No bio yet."} />
-              <Row label="Lives in" value={user.location || "Not added"} />
-              <Row label="Website" value={user.website || "Not added"} />
-              <Row label="Gender" value={user.gender || "Not added"} />
-              <Row
-                label="Joined"
-                value={user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}
-              />
-            </dl>
-          </div>
+          <section className="mx-auto max-w-[920px] overflow-hidden rounded-2xl border border-[#E6ECEE] bg-white shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#EDF1F2] px-5 py-5 sm:px-7"><div><h2 className="text-xl font-bold text-[#14252D]">About {isOwn ? "me" : user.firstName}</h2><p className="mt-1 text-sm text-[#708087]">Profile details and introduction</p></div>{isOwn && <button type="button" onClick={() => setEditOpen(true)} className="inline-flex items-center gap-2 rounded-lg bg-[#E8F3F3] px-3 py-2 text-sm font-semibold text-[#00696F] hover:bg-[#D9EBEB]"><Pencil size={15}/> Edit details</button>}</div>
+            <div className="grid gap-5 p-5 sm:p-7 lg:grid-cols-[minmax(0,1.15fr)_minmax(260px,.85fr)]">
+              <div className="rounded-xl bg-[#F5F9F9] p-5 sm:p-6"><div className="flex items-center gap-2 text-[#00696F]"><Quote size={18}/><h3 className="text-sm font-bold uppercase tracking-wide">Introduction</h3></div><p className={`mt-4 whitespace-pre-wrap break-words text-[15px] leading-7 ${user.bio ? "text-[#273942]" : "text-[#798991]"}`}>{user.bio || (isOwn ? "Tell people a little about yourself." : "No introduction added yet.")}</p>{isOwn && !user.bio && <button type="button" onClick={() => setEditOpen(true)} className="mt-5 text-sm font-semibold text-[#00696F] hover:underline">Add bio</button>}</div>
+              <div className="space-y-3"><h3 className="pb-1 text-sm font-bold uppercase tracking-wide text-[#65767E]">Details</h3><div className="flex items-start gap-3 rounded-xl border border-[#E8EFF0] p-3.5"><span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#E8F4F3] text-[#00696F]"><MapPin size={18}/></span><div className="min-w-0"><p className="text-xs text-[#7A8A91]">Lives in</p><p className="mt-0.5 text-sm font-medium text-[#243840]">{user.location || (isOwn ? "Add your location" : "Not added")}</p></div></div><div className="flex items-start gap-3 rounded-xl border border-[#E8EFF0] p-3.5"><span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#E8F4F3] text-[#00696F]"><Globe size={18}/></span><div className="min-w-0"><p className="text-xs text-[#7A8A91]">Website</p>{user.website ? <a href={user.website} target="_blank" rel="noopener noreferrer" className="mt-0.5 block break-all text-sm font-medium text-[#00696F] hover:underline">{user.website}</a> : <p className="mt-0.5 text-sm font-medium text-[#243840]">{isOwn ? "Add your website" : "Not added"}</p>}</div></div>{user.gender && <div className="flex items-start gap-3 rounded-xl border border-[#E8EFF0] p-3.5"><span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#E8F4F3] text-[#00696F]"><UserRound size={18}/></span><div><p className="text-xs text-[#7A8A91]">Gender</p><p className="mt-0.5 text-sm font-medium text-[#243840]">{user.gender}</p></div></div>}<div className="flex items-start gap-3 rounded-xl border border-[#E8EFF0] p-3.5"><span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#E8F4F3] text-[#00696F]"><CalendarDays size={18}/></span><div><p className="text-xs text-[#7A8A91]">Joined ChatTm</p><p className="mt-0.5 text-sm font-medium text-[#243840]">{user.createdAt ? new Date(user.createdAt).toLocaleDateString(undefined,{month:"long",year:"numeric"}) : "—"}</p></div></div></div>
+            </div>
+          </section>
         ) : null}
 
         {tab === "friends" ? (
@@ -514,15 +546,6 @@ function ProfileConnectionDialog({ name, working, onClose, onConfirm, action = "
       <button type="button" disabled={working} onClick={onConfirm} className="rounded-lg bg-red-600 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60">{working ? "Please wait…" : label}</button>
     </div>
   </dialog>;
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="text-[12px] font-semibold uppercase tracking-wide text-[#6B7280]">{label}</dt>
-      <dd className="text-[#111827]">{value}</dd>
-    </div>
-  );
 }
 
 function FriendButton({

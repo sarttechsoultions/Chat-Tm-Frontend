@@ -17,7 +17,7 @@ export default function MainColumns({ children }: { children: React.ReactNode })
   const isFriends = pathname.startsWith("/friends");
   const isGroups = pathname.startsWith("/groups");
   const isProfile = pathname.startsWith("/profile");
-  const showLeftSidebar = !isSearch && !isCreateStory && !isMessenger && !isCall;
+  const showLeftSidebar = !isSearch && !isCreateStory && !isMessenger && !isCall && pathname !== "/profile";
   const showRightSidebar =
     !isSearch && pathname !== "/create-post" &&
     !isCreateStory &&
