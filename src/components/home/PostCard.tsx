@@ -1,26 +1,27 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { UserAvatar } from "../ui/UserAvatar";
-import { listFriends, type FriendUser } from "../../lib/auth";
-import { playCommentSound, playLikeSound, playShareSound } from "../../lib/sounds";
-import { createDirectConversation, sendMessage } from "../../lib/api/chat";
+import { playLikeSound, playShareSound } from "../../lib/sounds";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import {
-  addPostComment,
   deletePost,
-  fetchPostComments,
   postShareUrl,
   sharePost,
   togglePostLike,
+  setPostHidden,
+  type PostPreferences,
   type PostAuthor,
-  type PostComment,
   type PostItem,
 } from "../../lib/api/posts";
 
 import MediaCarousel from "../posts/MediaCarousel";
+import PostOptionsMenu from "../posts/PostOptionsMenu";
+import { announcePostSuccess } from "../posts/PostNotice";
+import PostComments from "../posts/PostComments";
+import PostShareSheet from "../posts/PostShareSheet";
 
 function formatPostTime(iso: string) {
   const ms = Date.now() - new Date(iso).getTime();
@@ -70,10 +71,6 @@ function formatCount(value: number) {
   return String(value);
 }
 
-function friendName(user: FriendUser) {
-  return `${user.firstName} ${user.lastName}`.trim() || user.username;
-}
-
 function asLiker(user: ReturnType<typeof useCurrentUser>): PostAuthor | null {
   if (!user) return null;
   return {
@@ -89,7 +86,7 @@ function asLiker(user: ReturnType<typeof useCurrentUser>): PostAuthor | null {
 function PostMediaGrid({ media, onVideoOpen, compact=false }: { media: PostItem["media"]; onVideoOpen: () => void; compact?:boolean }) {
   if (!media.length) return null;
 
-  return <MediaCarousel items={media} aspect={compact ? 4/3 : 1} onVideoOpen={onVideoOpen} />;
+  return <MediaCarousel items={media} aspect={compact ? 4/3 : media[0]?.type.toLowerCase().includes("video") ? 4/5 : 1} onVideoOpen={onVideoOpen} />;
 }
 
 export default function PostCard({
@@ -97,35 +94,30 @@ export default function PostCard({
   compactMedia = false,
   onDeleted,
   initiallyShowComments = false,
+  showHiddenContent = false,
+  onPreferenceChanged,
 }: {
   post: PostItem;
   compactMedia?: boolean;
   initiallyShowComments?: boolean;
   onDeleted?: (id: string) => void;
   onUpdated?: (post: PostItem) => void;
+  showHiddenContent?: boolean;
+  onPreferenceChanged?: (id: string, preferences: PostPreferences) => void;
 }) {
   const [post, setPost] = useState(initialPost);
   const [showComments, setShowComments] = useState(initiallyShowComments);
-  const [comments, setComments] = useState<PostComment[]>([]);
-  const [commentDraft, setCommentDraft] = useState("");
-  const [loadingComments, setLoadingComments] = useState(false);
+  const [commentsVisited, setCommentsVisited] = useState(initiallyShowComments);
   const [working, setWorking] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [undoBusy, setUndoBusy] = useState(false);
+  const undoBusyRef = useRef(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareNotice, setShareNotice] = useState("");
-  const [sendOpen, setSendOpen] = useState(false);
-  const [friends, setFriends] = useState<FriendUser[]>([]);
-  const [friendQuery, setFriendQuery] = useState("");
-  const [sendNote, setSendNote] = useState("");
-  const [sendingTo, setSendingTo] = useState("");
-  const [sentChatId, setSentChatId] = useState("");
-  const [sendError, setSendError] = useState("");
-  const [loadingFriends, setLoadingFriends] = useState(false);
   const [likeBurst, setLikeBurst] = useState(false);
+  const [heartAnimKey, setHeartAnimKey] = useState<number | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const lastTapRef = useRef<number>(0);
   const [error, setError] = useState("");
-  const menuRef = useRef<HTMLDivElement>(null);
-  const commentInputRef = useRef<HTMLInputElement>(null);
-  const commentListRef = useRef<HTMLUListElement>(null);
   const router = useRouter();
   const me = useCurrentUser();
   const isOwner = me?.id === post.author.id;
@@ -140,44 +132,30 @@ export default function PostCard({
         }
       : post.author;
   const likers = post.likedBy || [];
+  const updateCommentCount = useCallback((commentsCount: number) => {
+    setPost(previous => ({ ...previous, commentsCount }));
+  }, []);
 
   useEffect(() => {
     setPost(initialPost);
   }, [initialPost]);
 
-  useEffect(() => {
-    if (!showComments) return;
-    const timeout = window.setTimeout(() => commentInputRef.current?.focus(), 50);
-    return () => window.clearTimeout(timeout);
-  }, [showComments]);
+  function updatePreferences(preferences: PostPreferences) {
+    setPost(current => ({ ...current, ...preferences }));
+    onPreferenceChanged?.(post.id, preferences);
+  }
 
-  useEffect(() => {
-    if (!sendOpen) return;
-    let cancelled = false;
-    setLoadingFriends(true);
-    setSendError("");
-    listFriends()
-      .then((data) => {
-        if (!cancelled) setFriends(data.items || []);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setSendError(err instanceof Error ? err.message : "Unable to load friends.");
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingFriends(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [sendOpen]);
-
-  useEffect(() => {
-    if (!initiallyShowComments) return;
-    setLoadingComments(true);
-    fetchPostComments(initialPost.id).then(setComments).catch(() => setError("Unable to load comments.")).finally(() => setLoadingComments(false));
-  }, [initiallyShowComments, initialPost.id]);
-
-  useEffect(()=>{if(!menuOpen)return;const outside=(e:PointerEvent)=>{if(!menuRef.current?.contains(e.target as Node))setMenuOpen(false);};const escape=(e:KeyboardEvent)=>{if(e.key==="Escape")setMenuOpen(false);};document.addEventListener("pointerdown",outside);document.addEventListener("keydown",escape);return()=>{document.removeEventListener("pointerdown",outside);document.removeEventListener("keydown",escape);};},[menuOpen]);
+  async function undoHide() {
+    if (undoBusyRef.current) return;
+    undoBusyRef.current = true;
+    setUndoBusy(true);
+    setError("");
+    try {
+      updatePreferences(await setPostHidden(post.id, false));
+      announcePostSuccess("Post can appear in your feeds again.");
+    } catch (err) { setError(err instanceof Error ? err.message : "Couldn't restore the post. Try Undo again."); }
+    finally { undoBusyRef.current = false; setUndoBusy(false); }
+  }
   async function handleLike() {
     const previous = post;
     const liking = !post.liked;
@@ -204,40 +182,46 @@ export default function PostCard({
     }
   }
 
-  async function toggleComments() {
-    if (showComments) {
-      setShowComments(false);
-      return;
+  function triggerDoubleTapHeart() {
+    const key = Date.now();
+    setHeartAnimKey(key);
+    window.setTimeout(() => {
+      setHeartAnimKey((curr) => (curr === key ? null : curr));
+    }, 950);
+  }
+
+  function handleMediaDoubleTap(e?: React.MouseEvent | React.TouchEvent) {
+    if (e) {
+      const target = e.target as HTMLElement;
+      if (target.closest("button") || target.closest("video")) return;
     }
-    setShowComments(true);
-    setLoadingComments(true);
-    try {
-      setComments(await fetchPostComments(post.id));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load comments.");
-    } finally {
-      setLoadingComments(false);
+    triggerDoubleTapHeart();
+    if (!post.liked) {
+      void handleLike();
+    } else {
+      playLikeSound();
+      setLikeBurst(true);
+      window.setTimeout(() => setLikeBurst(false), 500);
     }
   }
 
-  async function handleComment(event: React.FormEvent) {
-    event.preventDefault();
-    const body = commentDraft.trim();
-    if (!body || working) return;
-    setWorking(true);
-    setError("");
-    try {
-      const created = await addPostComment(post.id, body);
-      setComments((prev) => [created, ...prev]);
-      commentListRef.current?.scrollTo({top:0,behavior:"smooth"});
-      setPost((prev) => ({ ...prev, commentsCount: prev.commentsCount + 1 }));
-      setCommentDraft("");
-      playCommentSound();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to add comment.");
-    } finally {
-      setWorking(false);
+  function handleMediaTouchEnd(e: React.TouchEvent) {
+    const target = e.target as HTMLElement;
+    if (target.closest("button") || target.closest("video")) return;
+
+    const now = Date.now();
+    const diff = now - lastTapRef.current;
+    if (diff > 0 && diff < 350) {
+      lastTapRef.current = 0;
+      handleMediaDoubleTap(e);
+    } else {
+      lastTapRef.current = now;
     }
+  }
+
+  function toggleComments() {
+    setCommentsVisited(true);
+    setShowComments(value => !value);
   }
 
   async function handleDelete() {
@@ -253,7 +237,7 @@ export default function PostCard({
   }
 
   async function copyLink() {
-    const url = postShareUrl(author.username, post.id);
+    const url = postShareUrl(post.id);
     try {
       await navigator.clipboard.writeText(url);
       setShareNotice("Link copied");
@@ -264,68 +248,17 @@ export default function PostCard({
     }
   }
 
-  async function nativeShare() {
-    const url = postShareUrl(author.username, post.id);
-    const text = post.body || `Post by ${authorName(author)}`;
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: "ChatTm", text, url });
-      } else {
-        await navigator.clipboard.writeText(url);
-        setShareNotice("Link copied");
-      }
-      playShareSound();
-      setPost(await sharePost(post.id).catch(() => post));
-      setShareOpen(false);
-    } catch {
-      // user cancelled share sheet
-    }
-  }
-
-  async function sendToFriend(friend: FriendUser) {
-    if (sendingTo) return;
-    setSendingTo(friend.id);
-    setSendError("");
-    try {
-      const chat = await createDirectConversation(friend.id);
-      const url = postShareUrl(author.username, post.id);
-      const lines = [
-        sendNote.trim(),
-        `Shared a post from ${authorName(author)}`,
-        post.body?.trim() || "",
-        url,
-      ].filter(Boolean);
-      const media = post.media[0];
-      const mediaUrl = media?.url
-        ? /^https?:\/\//.test(media.url)
-          ? media.url
-          : `${window.location.origin}${media.url.startsWith("/") ? media.url : `/${media.url}`}`
-        : undefined;
-      const extra = mediaUrl
-        ? {
-            type: (media?.type === "video" ? "VIDEO" : "IMAGE") as "IMAGE" | "VIDEO",
-            mediaUrl,
-            fileName: "Shared post",
-          }
-        : undefined;
-      await sendMessage(chat.id, lines.join("\n\n"), undefined, extra);
-      setPost(await sharePost(post.id).catch(() => post));
-      playShareSound();
-      setSendOpen(false);
-      setShareOpen(false);
-      setSendNote("");
-      setFriendQuery("");
-      setSentChatId(chat.id);
-      setShareNotice(`Sent to ${friendName(friend)}`);
-    } catch (err) {
-      setSendError(err instanceof Error ? err.message : "Unable to send this post.");
-    } finally {
-      setSendingTo("");
-    }
-  }
-
-  const friendMatches = friends.filter((user) =>
-    friendName(user).toLowerCase().includes(friendQuery.trim().toLowerCase())
+  if (post.hidden && !showHiddenContent) return (
+    <div id={`post-${post.id}`} className="rounded-2xl border border-[#E5E7EB] bg-white p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div role="status">
+          <p className="text-sm font-semibold text-[#111827]">Post hidden from your feeds</p>
+          <p className="mt-1 text-xs text-[#6B7280]">Manage hidden posts in <Link href="/saved?view=hidden" className="font-medium text-[#00696F] underline">Saved → Hidden</Link>.</p>
+        </div>
+        <button type="button" disabled={undoBusy} onClick={() => void undoHide()} className="min-h-11 rounded-lg px-3 text-sm font-semibold text-[#00696F] hover:bg-[#EFF4FF] disabled:opacity-50">{undoBusy ? "Restoring…" : "Undo"}</button>
+      </div>
+      {error ? <p role="alert" className="mt-2 text-sm text-red-600">{error}</p> : null}
+    </div>
   );
 
   return (
@@ -360,6 +293,7 @@ export default function PostCard({
             <div className="flex flex-wrap items-center gap-1 text-[12px] text-[#6B7280] leading-4">
               <span>{formatPostTime(post.createdAt)}</span>
               {post.edited ? <span>• Edited</span> : null}
+              {post.saved ? <span className="font-medium text-[#00696F]">• Saved</span> : null}
               <span>•</span>
               <span className="relative size-3 overflow-clip">
                 <img
@@ -393,54 +327,69 @@ export default function PostCard({
             ) : null}
           </div>
         </div>
-        <div ref={menuRef} className="relative shrink-0">
-          <button
-            type="button"
-            className="flex size-11 touch-manipulation items-center justify-center rounded-full hover:bg-gray-50"
-            onClick={() => setMenuOpen((open) => !open)}
-            aria-label="Post options" aria-expanded={menuOpen}
-          >
-            <span className="relative w-[4px] h-[14px] overflow-clip">
-              <img src="/figma/icons/more-v.svg" alt="" width={4} height={14} className="size-full object-contain" />
-            </span>
-          </button>
-          {menuOpen ? (
-            <div className="absolute right-0 top-11 z-30 min-w-[190px] rounded-[10px] bg-white py-1 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
-              {isOwner && <>
-              <Link
-                href={`/create-post?edit=${post.id}`}
-                onClick={() => setMenuOpen(false)}
-                className="block w-full px-4 py-2 text-left text-[14px] font-medium text-[#111827] hover:bg-gray-50"
-              >
-                Edit post
-              </Link>
-              <button
-                type="button"
-                disabled={working}
-                onClick={() => void handleDelete()}
-                className="w-full px-4 py-2 text-left text-[14px] font-medium text-red-600 hover:bg-red-50 disabled:opacity-60"
-              >
-                Delete post
-              </button>
-              </>}
-              <button type="button" onClick={()=>{setMenuOpen(false);void copyLink();}} className="block w-full px-4 py-3 text-left text-sm hover:bg-gray-50">Copy link</button>
-              <button type="button" onClick={()=>{setMenuOpen(false);setShareOpen(true);}} className="block w-full px-4 py-3 text-left text-sm hover:bg-gray-50">Share post</button>
-              {!isOwner && <Link href={"/profile/"+author.username} onClick={()=>setMenuOpen(false)} className="block w-full px-4 py-3 text-left text-sm hover:bg-gray-50">View profile</Link>}
-            </div>
-          ) : null}
-        </div>
+        <PostOptionsMenu post={post} isOwner={isOwner} deleting={working} onDelete={() => void handleDelete()} onCopyLink={() => void copyLink()} onShare={() => setShareOpen(true)} onPreferenceChanged={updatePreferences} />
       </div>
+
+      {post.hidden ? <p className="rounded-lg bg-[#F3F4F6] px-3 py-2 text-xs text-[#6B7280]">Hidden from your feeds. Choose Unhide post in the options menu to restore it.</p> : null}
 
       {post.heading ? (
         <h3 className="break-words pt-1 text-[18px] font-bold leading-6 text-[#111827]">{post.heading}</h3>
       ) : null}
       {post.body ? (
-        <p className="text-[14px] leading-5 text-[#1F2937] break-words whitespace-pre-line pt-1">
-          {renderCaption(post.body)}
-        </p>
+        <div className="pt-1 text-[14px] leading-5 text-[#1F2937]">
+          <p
+            className={`break-words whitespace-pre-line ${!isExpanded ? "line-clamp-2" : ""}`}
+            style={
+              !isExpanded
+                ? {
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
+                  }
+                : undefined
+            }
+          >
+            {renderCaption(post.body)}
+          </p>
+          {post.body.length > 100 || (post.body.match(/\n/g) || []).length >= 2 ? (
+            <button
+              type="button"
+              onClick={() => setIsExpanded((prev) => !prev)}
+              className="mt-1 inline-flex items-center text-[13px] font-semibold text-[#6B7280] hover:text-[#00696F] transition-colors"
+            >
+              {isExpanded ? "Show less" : "… View more"}
+            </button>
+          ) : null}
+        </div>
       ) : null}
 
-      {post.media.length ? <PostMediaGrid compact={compactMedia} media={post.media} onVideoOpen={() => router.push(`/watch?reel=${post.id}`)} /> : null}
+      {post.media.length ? (
+        <div
+          className="relative overflow-hidden rounded-[12px] select-none touch-manipulation"
+          onDoubleClick={handleMediaDoubleTap}
+          onTouchEnd={handleMediaTouchEnd}
+        >
+          <PostMediaGrid
+            compact={compactMedia}
+            media={post.media}
+            onVideoOpen={() => router.push(`/watch?reel=${post.id}`)}
+          />
+          {heartAnimKey ? (
+            <div
+              key={heartAnimKey}
+              className="pointer-events-none absolute left-1/2 top-1/2 z-30 -translate-x-1/2 -translate-y-1/2 insta-heart-pop"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                className="size-24 sm:size-28 fill-[#FF3040] drop-shadow-[0_8px_24px_rgba(255,48,64,0.55)] filter"
+              >
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+              </svg>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar border-b border-[#F3F4F6] py-2">
         <div className="flex min-h-5 items-center gap-1">
@@ -518,7 +467,7 @@ export default function PostCard({
             onClick={() => {
               setShareOpen((open) => !open);
               setShareNotice("");
-              setSentChatId("");
+
             }}
             className="flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-2 text-[13px] font-medium text-[#4B5563] hover:bg-gray-50 sm:gap-2 sm:px-4 sm:text-[14px]"
           >
@@ -527,178 +476,16 @@ export default function PostCard({
             </span>
             Share
           </button>
-          {shareOpen ? (
-            <div className="absolute right-0 bottom-11 z-20 w-[200px] rounded-[12px] bg-white py-1 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
-              <button
-                type="button"
-                onClick={() => {
-                  setShareOpen(false);
-                  setSendOpen(true);
-                  setSendError("");
-                }}
-                className="w-full cursor-pointer px-4 py-2 text-left text-[13px] hover:bg-[#EFF4FF]"
-              >
-                Send in message
-              </button>
-              <button
-                type="button"
-                onClick={() => void nativeShare()}
-                className="w-full cursor-pointer px-4 py-2 text-left text-[13px] hover:bg-[#EFF4FF]"
-              >
-                Share now
-              </button>
-              <button
-                type="button"
-                onClick={() => void copyLink()}
-                className="w-full cursor-pointer px-4 py-2 text-left text-[13px] hover:bg-[#EFF4FF]"
-              >
-                Copy link
-              </button>
-              {shareNotice && !sentChatId ? (
-                <p className="px-4 py-2 text-[12px] font-medium text-[#00696F]">{shareNotice}</p>
-              ) : null}
-            </div>
-          ) : null}
+
         </div>
       </div>
 
-      {showComments ? (
-        <div className="comment-panel border-t border-[#F3F4F6] pt-3">
-          {loadingComments ? (
-            <p className="py-2 text-[13px] text-[#6B7280]">Loading comments…</p>
-          ) : comments.length ? (
-            <ul ref={commentListRef} className="flex max-h-[280px] flex-col gap-3 overflow-y-auto pb-3">
-              {comments.map((comment) => {
-                const name = authorName(comment.author);
-                return (
-                  <li key={comment.id} className="flex items-start gap-2">
-                    <Link href={`/profile/${comment.author.username}`}>
-                      <UserAvatar avatarUrl={comment.author.avatar} name={name} size={32} />
-                    </Link>
-                    <div className="min-w-0 flex-1">
-                      <div className="rounded-[12px] bg-[#F3F4F6] px-3 py-2">
-                        <Link href={`/profile/${comment.author.username}`} className="text-[13px] font-semibold text-[#111827] hover:underline">
-                          {name}
-                        </Link>
-                        <p className="text-[13px] text-[#1F2937]">{comment.body}</p>
-                      </div>
-                      <span className="pl-3 text-[11px] text-[#9CA3AF]">{formatPostTime(comment.createdAt)}</span>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <p className="py-2 text-[13px] text-[#6B7280]">Be the first to comment.</p>
-          )}
-          <form onSubmit={(event) => void handleComment(event)} className="flex items-center gap-2">
-            <UserAvatar avatarUrl={me?.avatar} name={me ? `${me.firstName} ${me.lastName}` : "You"} size={32} />
-            <input
-              ref={commentInputRef}
-              value={commentDraft}
-              onChange={(event) => setCommentDraft(event.target.value)}
-              placeholder="Write a comment…"
-              className="h-10 flex-1 rounded-full border border-[#E5E7EB] bg-[#F9FAFB] px-4 text-[14px] outline-none focus:border-[#00696F]"
-            />
-            <button
-              type="submit"
-              disabled={working || !commentDraft.trim()}
-              className="rounded-full bg-[#00696F] px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-50"
-            >
-              Post
-            </button>
-          </form>
-        </div>
-      ) : null}
+      {commentsVisited ? <div hidden={!showComments}><PostComments key={`${post.id}:${me?.id || "loading"}`} postId={post.id} postAuthorId={post.author.id} active={showComments} onCountChanged={updateCommentCount} /></div> : null}
 
       {error ? <p className="text-[13px] text-red-600">{error}</p> : null}
 
-      {shareNotice && sentChatId ? (
-        <p className="text-center text-[13px] text-[#00696F]">
-          {shareNotice}.{" "}
-          <Link href={`/messenger?chatId=${sentChatId}`} className="cursor-pointer font-semibold underline">
-            Open chat
-          </Link>
-        </p>
-      ) : null}
-
-      {sendOpen ? (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 px-4"
-          onClick={() => {
-            if (sendingTo) return;
-            setSendOpen(false);
-            setFriendQuery("");
-            setSendNote("");
-          }}
-        >
-          <div
-            className="w-full max-w-[420px] rounded-[16px] bg-white p-5 shadow-[0_20px_50px_rgba(0,0,0,0.2)]"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-[16px] font-bold text-[#111827]">Send in message</h3>
-              <button
-                type="button"
-                onClick={() => {
-                  if (sendingTo) return;
-                  setSendOpen(false);
-                  setFriendQuery("");
-                  setSendNote("");
-                }}
-                className="size-8 cursor-pointer rounded-full text-[18px] text-[#6B7280] hover:bg-[#F3F4F6]"
-                aria-label="Close"
-              >
-                ×
-              </button>
-            </div>
-            <input
-              value={sendNote}
-              onChange={(event) => setSendNote(event.target.value)}
-              placeholder="Add a message (optional)"
-              className="mb-3 h-10 w-full rounded-[8px] border border-[#D8D2D2] px-3 text-[14px] outline-none focus:border-[#00696F]"
-            />
-            <input
-              value={friendQuery}
-              onChange={(event) => setFriendQuery(event.target.value)}
-              placeholder="Search friends"
-              className="mb-3 h-10 w-full rounded-[8px] border border-[#D8D2D2] px-3 text-[14px] outline-none focus:border-[#00696F]"
-            />
-            <ul className="max-h-[260px] overflow-y-auto">
-              {loadingFriends ? (
-                <p className="py-6 text-center text-[13px] text-[#6B7280]">Loading friends…</p>
-              ) : friendMatches.length ? (
-                friendMatches.map((friend) => (
-                  <li key={friend.id}>
-                    <button
-                      type="button"
-                      disabled={Boolean(sendingTo)}
-                      onClick={() => void sendToFriend(friend)}
-                      className="flex w-full cursor-pointer items-center gap-3 rounded-[8px] px-2 py-2 text-left hover:bg-[#EFF4FF] disabled:opacity-60"
-                    >
-                      <UserAvatar avatarUrl={friend.avatar} name={friendName(friend)} size={36} />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[14px] font-medium text-[#111827]">
-                          {friendName(friend)}
-                        </span>
-                        <span className="block text-[12px] text-[#6B7280]">@{friend.username}</span>
-                      </span>
-                      <span className="text-[13px] font-semibold text-[#00696F]">
-                        {sendingTo === friend.id ? "Sending…" : "Send"}
-                      </span>
-                    </button>
-                  </li>
-                ))
-              ) : (
-                <p className="py-6 text-center text-[13px] text-[#6B7280]">
-                  {friends.length ? "No matching friends." : "Add friends to send posts in a message."}
-                </p>
-              )}
-            </ul>
-            {sendError ? <p className="mt-3 text-[13px] text-red-600">{sendError}</p> : null}
-          </div>
-        </div>
-      ) : null}
+      {shareNotice ? <p role="status" className="text-center text-xs text-[#00696F]">{shareNotice}</p> : null}
+      {shareOpen ? <PostShareSheet post={post} onClose={() => setShareOpen(false)} onShared={setPost}/> : null}
     </div>
   );
 }

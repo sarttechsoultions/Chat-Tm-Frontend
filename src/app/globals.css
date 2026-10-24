@@ -84,6 +84,10 @@
     animation: chat-slide-up 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
+  .insta-heart-pop {
+    animation: insta-heart-anim 900ms cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  }
+
   .gif-badge {
     animation: chat-pop 220ms ease both;
   }
@@ -183,6 +187,29 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes insta-heart-anim {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0) rotate(-12deg);
+  }
+  20% {
+    opacity: 0.95;
+    transform: translate(-50%, -50%) scale(1.25) rotate(0deg);
+  }
+  45% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1) rotate(0deg);
+  }
+  75% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1) translateY(-8px);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.85) translateY(-28px);
   }
 }
 

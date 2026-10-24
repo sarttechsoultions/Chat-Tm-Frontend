@@ -28,7 +28,7 @@ function Slide({
       {isVideo(item.type) ? (
         <div className="absolute inset-0"><VideoPlayer src={item.url} onOpenReel={onVideoOpen ? () => onVideoOpen(item) : undefined} /></div>
       ) : (
-        <img src={item.url} alt="" className="absolute inset-0 size-full object-cover object-center" />
+        <img src={item.url} alt="" loading="lazy" decoding="async" className="absolute inset-0 size-full object-cover object-center" />
       )}
     </div>
   );

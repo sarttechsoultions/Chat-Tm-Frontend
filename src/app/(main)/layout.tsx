@@ -5,6 +5,7 @@ import MainColumns from "../../components/home/MainColumns";
 import { AppShellProvider } from "../../components/home/AppShellContext";
 import MobileDrawer from "../../components/home/MobileDrawer";
 import MobileBottomNav from "../../components/home/MobileBottomNav";
+import PostNotice from "../../components/posts/PostNotice";
 
 export default function MainLayout({
   children,
@@ -21,6 +22,7 @@ export default function MainLayout({
         <MobileBottomNav />
         <MobileDrawer />
         <CallManager />
+        <PostNotice />
       </div>
     </AppShellProvider>
   );

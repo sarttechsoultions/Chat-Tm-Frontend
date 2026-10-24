@@ -5,7 +5,7 @@ import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { Search, X } from "lucide-react";
+import { Bell, CheckCheck, Search, X } from "lucide-react";
 import SearchPanel from "./SearchPanel";
 import FigmaIcon from "./FigmaIcon";
 import { UserAvatar } from "../ui/UserAvatar";
@@ -13,11 +13,13 @@ import { useAppShell } from "./AppShellContext";
 import { displayName, meRequest } from "../../lib/auth";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import useUnreadCount from "../hooks/useUnreadCount";
+import { AppNotification, fetchNotificationUnreadCount, fetchNotifications, markAllNotificationsRead, markNotificationRead } from "../../lib/api/notifications";
+import { useSocket } from "../hooks/useSocket";
 const NAV_ICONS = [
   { label: "Home", icon: "/figma/icons/nav-home.svg", href: "/" },
   { label: "Friends", icon: "/figma/icons/nav-groups.svg", href: "/friends" },
   { label: "Groups", icon: "/figma/icons/nav-friends.svg", href: "/groups" },
-  { label: "Marketplace", icon: "/figma/icons/nav-marketplace.svg", href: "/marketplace" },
+  { label: "Wallet", icon: "/figma/icons/wallet.svg", href: "/wallet" },
   { label: "Watch", icon: "/figma/icons/nav-watch.svg", href: "/watch" },
 ] as const;
 
@@ -48,6 +50,57 @@ export default function Navbar() {
     ? { name: displayName(currentUser), avatar: currentUser.avatar || "" }
     : null;
   const unread = useUnreadCount();
+  const socket = useSocket();
+  const [notificationsOpen, setNotificationsOpen] = React.useState(false);
+  const [notifications, setNotifications] = React.useState<AppNotification[]>([]);
+  const [notificationCount, setNotificationCount] = React.useState(0);
+  const [notificationsLoading, setNotificationsLoading] = React.useState(false);
+  const [notificationsError, setNotificationsError] = React.useState("");
+  const notificationsRef = React.useRef<HTMLDivElement>(null);
+  const refreshNotifications = React.useCallback(async () => {
+    setNotificationsLoading(true);
+    setNotificationsError("");
+    try {
+      const result = await fetchNotifications();
+      setNotifications(result.items || []);
+      setNotificationCount(result.unreadCount || 0);
+    } catch (error) {
+      setNotificationsError(error instanceof Error ? error.message : "Could not load notifications");
+    } finally { setNotificationsLoading(false); }
+  }, []);
+  React.useEffect(() => { void fetchNotificationUnreadCount().then(setNotificationCount).catch(() => undefined); }, []);
+  React.useEffect(() => {
+    if (!socket) return;
+    const onNew = (item: AppNotification) => {
+      setNotifications(current => [item, ...current.filter(existing => existing.id !== item.id)].slice(0, 30));
+      setNotificationCount(count => count + 1);
+    };
+    socket.on("notification_new", onNew);
+    return () => { socket.off("notification_new", onNew); };
+  }, [socket]);
+  React.useEffect(() => {
+    if (!notificationsOpen) return;
+    const outside = (event: PointerEvent) => { if (!notificationsRef.current?.contains(event.target as Node)) setNotificationsOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setNotificationsOpen(false); };
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", escape); };
+  }, [notificationsOpen]);
+  const openNotification = async (item: AppNotification) => {
+    if (!item.isRead) {
+      setNotifications(current => current.map(row => row.id === item.id ? { ...row, isRead: true } : row));
+      setNotificationCount(count => Math.max(0, count - 1));
+      try { await markNotificationRead(item.id); } catch { void refreshNotifications(); }
+    }
+    setNotificationsOpen(false);
+    const path = item.data?.path;
+    router.push(path?.startsWith("/") ? path : "/notifications");
+  };
+  const markAllRead = async () => {
+    setNotifications(current => current.map(item => ({ ...item, isRead: true })));
+    setNotificationCount(0);
+    try { await markAllNotificationsRead(); } catch { void refreshNotifications(); }
+  };
   React.useEffect(() => { void meRequest().catch(() => undefined); }, []);
 
   return (
@@ -120,9 +173,19 @@ export default function Navbar() {
           >
             {searchOpen ? <X className="size-[18px] text-[#0B1C30]" /> : <Search className="size-5 text-[#0B1C30]" />}
           </button>
-          <button type="button" aria-label="Notifications" className="relative size-[30px] shrink-0 overflow-clip">
-            <img src="/figma/icons/bell.svg" alt="" width={30} height={30} className="size-full object-contain" />
-          </button>
+          <div ref={notificationsRef} className="relative shrink-0">
+            <button type="button" aria-label={notificationCount ? `Notifications, ${notificationCount} unread` : "Notifications"} aria-expanded={notificationsOpen} onClick={() => { setNotificationsOpen(value => !value); if (!notificationsOpen) void refreshNotifications(); }} className="relative flex size-[30px] items-center justify-center rounded-full hover:bg-[#F3F4F6]">
+              <img src="/figma/icons/bell.svg" alt="" width={30} height={30} className="size-full object-contain" />
+              {notificationCount > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#ED4956] px-1 text-[10px] font-bold leading-none text-white shadow-[0_0_0_2px_white]">{notificationCount > 99 ? "99+" : notificationCount}</span>}
+            </button>
+            {notificationsOpen && <section aria-label="Notifications" className="fixed left-3 right-3 top-[calc(56px+env(safe-area-inset-top))] z-[80] w-auto overflow-hidden rounded-2xl border border-[#E4EAEC] bg-white shadow-[0_12px_40px_rgba(16,36,48,.18)] md:absolute md:left-auto md:right-0 md:top-[calc(100%+10px)] md:w-[360px]">
+              <div className="flex items-center justify-between border-b border-[#EDF1F2] px-4 py-3"><div><h2 className="font-semibold text-[#15232C]">Notifications</h2><p className="text-xs text-[#687681]">{notificationCount ? `${notificationCount} unread` : "You're all caught up"}</p></div><div className="flex items-center gap-2">{notificationCount > 0 && <button onClick={() => void markAllRead()} className="rounded-lg px-2 py-1 text-xs font-semibold text-[#00696F] hover:bg-[#E8F4F4]">Mark all read</button>}<button aria-label="Close notifications" onClick={() => setNotificationsOpen(false)} className="rounded-full p-1.5 hover:bg-gray-100"><X size={16}/></button></div></div>
+              <div className="max-h-[min(65dvh,460px)] overflow-y-auto">
+                {notificationsLoading && !notifications.length ? <p className="p-6 text-center text-sm text-gray-500">Loading notifications…</p> : notificationsError ? <p role="alert" className="p-5 text-center text-sm text-red-600">{notificationsError}</p> : !notifications.length ? <div className="px-5 py-10 text-center"><Bell className="mx-auto mb-2 text-[#8EA1A6]" size={24}/><p className="text-sm font-medium">No notifications yet</p><p className="mt-1 text-xs text-gray-500">Friend requests and post activity will appear here.</p></div> : notifications.map(item => <button key={item.id} onClick={() => void openNotification(item)} className={`flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-[#F5F9F9] ${item.isRead ? "bg-white" : "bg-[#F0F8F8]"}`}><span className={`mt-1 flex size-9 shrink-0 items-center justify-center rounded-full ${item.isRead ? "bg-[#EFF3F4] text-[#65747D]" : "bg-[#D9EEEE] text-[#00696F]"}`}><Bell size={17}/></span><span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-[#17232B]">{item.title}</span><span className="mt-0.5 block line-clamp-2 text-xs text-[#586770]">{item.body}</span><span className="mt-1 block text-[11px] text-[#829098]">{new Date(item.createdAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span></span>{!item.isRead ? <span className="mt-3 size-2 shrink-0 rounded-full bg-[#00777C]"/> : <CheckCheck size={15} className="mt-2 shrink-0 text-[#9AA7AC]"/>}</button>)}
+              </div>
+              <Link href="/notifications" onClick={() => setNotificationsOpen(false)} className="block border-t border-[#EDF1F2] py-3 text-center text-sm font-semibold text-[#00696F] hover:bg-[#F5F9F9]">See all notifications</Link>
+            </section>}
+          </div>
           <Link
             href="/messenger"
             aria-label={unread ? `Messenger, ${unread} unread` : "Messenger"}

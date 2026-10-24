@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   blockFriend, listBlockedFriends, unblockFriend,
   acceptFriendRequest,
@@ -118,6 +118,16 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
 
   const router = useRouter();
   const socket=useSocket();
+  const tabsRef=useRef<HTMLElement>(null);
+  const tabRefs=useRef(new Map<FriendTab,HTMLAnchorElement>());
+
+  useEffect(()=>{
+    const nav=tabsRef.current;
+    const selected=tabRefs.current.get(tab);
+    if(!nav||!selected||window.matchMedia("(min-width: 640px)").matches)return;
+    const centered=selected.offsetLeft+selected.offsetWidth/2-nav.clientWidth/2;
+    nav.scrollTo({left:Math.max(0,centered),behavior:"smooth"});
+  },[tab]);
 
   const removeSuggestion=async(id:string)=>{
     setWorking(id);
@@ -326,14 +336,16 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
         </h1>
         <p className="mt-1 text-[14px] leading-5 text-[#6B7280]">{subtitle}</p>
         <nav
+          ref={tabsRef}
           aria-label="Friends sections"
-          className="mt-5 flex flex-wrap gap-1.5 rounded-xl bg-[#F4F7F7] p-1.5"
+          className="mt-5 flex w-full flex-nowrap items-stretch gap-1 overflow-x-auto rounded-xl bg-[#F4F7F7] p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-1.5"
         >
           {tabs.map((item) => (
             <Link
               key={item.id}
               href={item.href}
-              className={`flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors sm:flex-1 ${
+              ref={element=>{if(element)tabRefs.current.set(item.id,element);else tabRefs.current.delete(item.id);}}
+              className={`flex min-h-10 min-w-[max-content] flex-1 items-center justify-center gap-1 rounded-lg px-2 py-2 text-center text-[11px] font-medium leading-4 transition-colors sm:min-w-0 sm:gap-2 sm:px-3 sm:text-[13px] ${
                 item.id === tab
                   ? "bg-white text-[#00696F] shadow-sm"
                   : "text-[#647478] hover:bg-white/70 hover:text-[#00696F]"
