@@ -9,7 +9,8 @@ import ReelOverlay from "../../../components/posts/ReelOverlay";
 import ReelShare from "../../../components/posts/ReelShare";
 import ReelComments from "../../../components/posts/ReelComments";
 import { UserAvatar } from "../../../components/ui/UserAvatar";
-import { fetchPosts, togglePostLike, type PostItem } from "../../../lib/api/posts";
+import { fetchPost, fetchPosts, togglePostLike, type PostItem } from "../../../lib/api/posts";
+import { useCurrentUser } from "../../../components/hooks/useCurrentUser";
 
 const tabs = [{ label: "For you", icon: Sparkles }, { label: "Saved", icon: Bookmark }, { label: "Liked Reels", icon: ThumbsUp }, { label: "History", icon: History }];
 function readIds(key: string): string[] { try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; } }
@@ -18,6 +19,7 @@ function ReelsSkeleton() {
 }
 function WatchPageContent() {
   const searchParams = useSearchParams();
+  const selectedReel = searchParams.get("reel");
   const [posts, setPosts] = useState<PostItem[]>([]);
   const [tab, setTab] = useState("For you");
   const [saved, setSaved] = useState<string[]>([]);
@@ -32,10 +34,21 @@ function WatchPageContent() {
     let cancelled = false;
     const timer = window.setTimeout(() => {
       setSaved(readIds("chattm_saved_reels")); setHistory(readIds("chattm_reel_history"));
-      fetchPosts().then(items => { if (!cancelled) setPosts(items.filter(post => post.media.some(m => m.type.toLowerCase().includes("video")))); }).catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : "Unable to load reels."); }).finally(() => { if (!cancelled) setLoading(false); });
+      Promise.allSettled([fetchPosts(), selectedReel ? fetchPost(selectedReel) : Promise.resolve(null)]).then(([feed, direct]) => {
+        if (cancelled) return;
+        const items = feed.status === "fulfilled" ? feed.value : [];
+        const selected = direct.status === "fulfilled" ? direct.value : null;
+        if (selectedReel && (!selected || !selected.media.some(media => media.type.toLowerCase().includes("video")))) {
+          setError("This reel couldn’t be opened. It may be unavailable, or your connection may have been interrupted.");
+          setPosts([]);
+          return;
+        }
+        if (!selectedReel && feed.status === "rejected") setError("Unable to load reels. Please try again.");
+        setPosts((selected ? [selected, ...items.filter(post => post.id !== selected.id)] : items).filter(post => post.media.some(media => media.type.toLowerCase().includes("video"))));
+      }).finally(() => { if (!cancelled) setLoading(false); });
     }, 0);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, []);
+  }, [selectedReel]);
   function markViewed(id: string) {
     if (expanded && expanded !== id) setExpanded("");
     setHistory(current => { const next = [id, ...current.filter(value => value !== id)].slice(0, 100); localStorage.setItem("chattm_reel_history", JSON.stringify(next)); return next; });
@@ -45,7 +58,6 @@ function WatchPageContent() {
     if (busy) return; setBusy(post.id); setError("");
     try { const updated = await togglePostLike(post.id); setPosts(current => current.map(item => item.id === updated.id ? updated : item)); } catch { setError("Unable to update like. Try again."); } finally { setBusy(""); }
   }
-  const selectedReel = searchParams.get("reel");
   const visible = posts
     .filter(post => tab === "Saved" ? saved.includes(post.id) : tab === "Liked Reels" ? post.liked : tab === "History" ? history.includes(post.id) : true)
     .sort((left, right) => Number(right.id === selectedReel) - Number(left.id === selectedReel));
@@ -83,13 +95,19 @@ function WatchPageContent() {
 
         </article>;
       })}</div> : null}
-      {expanded && posts.find(post => post.id === expanded) && <ReelOverlay label="Comments" sidePanel onClose={() => setExpanded("")}><ReelComments key={expanded} post={posts.find(post => post.id === expanded)!} onClose={() => setExpanded("")} onAdded={() => setPosts(current => current.map(item => item.id === expanded ? { ...item, commentsCount: item.commentsCount + 1 } : item))}/></ReelOverlay>}
+      {expanded && posts.find(post => post.id === expanded) && <ReelOverlay label="Comments" sidePanel onClose={() => setExpanded("")}><ReelComments key={expanded} post={posts.find(post => post.id === expanded)!} onClose={() => setExpanded("")} onCountChanged={count => setPosts(current => current.map(item => item.id === expanded ? { ...item, commentsCount: count } : item))}/></ReelOverlay>}
       </div>
       {shareTarget && <ReelShare post={shareTarget} onClose={() => setShareTarget(null)} onShared={updated => setPosts(current => current.map(item => item.id === updated.id ? updated : item))}/>}
     </section>
   </div>;
 }
 
+function WatchAccount() {
+  const user = useCurrentUser();
+  const params = useSearchParams();
+  return user ? <WatchPageContent key={`${user.id}:${params.get("reel") || ""}`}/> : <ReelsSkeleton/>;
+}
+
 export default function WatchPage() {
-  return <Suspense fallback={<div className="size-full bg-[#101820]" />}><WatchPageContent /></Suspense>;
+  return <Suspense fallback={<div className="size-full bg-[#101820]" />}><WatchAccount /></Suspense>;
 }

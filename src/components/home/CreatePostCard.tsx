@@ -6,9 +6,15 @@ import { meRequest } from "../../lib/auth";
 import { UserAvatar } from "../ui/UserAvatar";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 
-export default function CreatePostCard() {
+export default function CreatePostCard({ onOpenModal }: { onOpenModal?: () => void } = {}) {
   const router = useRouter();
-  const openCreatePost = () => router.push("/create-post");
+  const openCreatePost = () => {
+    if (onOpenModal) {
+      onOpenModal();
+    } else {
+      router.push("/create-post");
+    }
+  };
   const user = useCurrentUser();
   const firstName = user?.firstName || "User";
   const avatar = user?.avatar || "";

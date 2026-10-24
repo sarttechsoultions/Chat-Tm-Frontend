@@ -22,6 +22,7 @@ import {
   type FriendUser,
 } from "../../lib/auth";
 import { createDirectConversation } from "../../lib/api/chat";
+import type { PostPreferences } from "../../lib/api/posts";
 import {
   fetchProfileFriends,
   fetchMyProfile,
@@ -64,14 +65,21 @@ function persistUser(user: AuthUser) {
 export default function ProfileView({ username }: { username?: string }) {
   const router = useRouter();
   const [data, setData] = useState<ProfileData | null>(null);
+  const updatePostPreferences = useCallback((id: string, preferences: PostPreferences) => {
+    setData(previous => previous ? { ...previous, posts: previous.posts.map(post => post.id === id ? { ...post, ...preferences } : post) } : previous);
+  }, []);
   const socket=useSocket();
   const [selectedPostId,setSelectedPostId]=useState<string|null>(null);
   const [tab, setTab] = useState<Tab>("posts");
   useEffect(()=>{
-    const sync=()=>{if(window.location.hash==="#friends")setTab("friends");};
+    const sync=()=>{
+      if(window.location.hash==="#friends")setTab("friends");
+      const postId=window.location.hash.match(/^#post-([a-zA-Z0-9_-]+)$/)?.[1];
+      if(postId)router.replace(`/posts/${encodeURIComponent(postId)}`);
+    };
     sync();window.addEventListener("hashchange",sync);
     return()=>window.removeEventListener("hashchange",sync);
-  },[]);
+  },[router]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [working, setWorking] = useState(false);
@@ -394,7 +402,7 @@ export default function ProfileView({ username }: { username?: string }) {
         </div>
       </section>
 
-      {selectedPostId&&posts.find(post=>post.id===selectedPostId)&&<div role="dialog" aria-modal="true" aria-label="Post" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" onClick={()=>setSelectedPostId(null)}><div className="relative max-h-[90dvh] w-full max-w-[560px] overflow-y-auto rounded-2xl bg-white" onClick={e=>e.stopPropagation()}><button autoFocus aria-label="Close post" onClick={()=>setSelectedPostId(null)} className="sticky top-2 z-20 ml-auto mr-2 flex size-9 items-center justify-center rounded-full bg-white shadow"><X size={20}/></button><PostCard post={posts.find(post=>post.id===selectedPostId)!} compactMedia onDeleted={id=>{setData(prev=>prev?{...prev,posts:prev.posts.filter(post=>post.id!==id)}:prev);setSelectedPostId(null);}}/></div></div>}
+      {selectedPostId&&posts.find(post=>post.id===selectedPostId)&&<div role="dialog" aria-modal="true" aria-label="Post" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" onClick={()=>setSelectedPostId(null)}><div className="relative max-h-[90dvh] w-full max-w-[560px] overflow-y-auto rounded-2xl bg-white" onClick={e=>e.stopPropagation()}><button autoFocus aria-label="Close post" onClick={()=>setSelectedPostId(null)} className="sticky top-2 z-20 ml-auto mr-2 flex size-9 items-center justify-center rounded-full bg-white shadow"><X size={20}/></button><PostCard post={posts.find(post=>post.id===selectedPostId)!} compactMedia showHiddenContent onPreferenceChanged={updatePostPreferences} onDeleted={id=>{setData(prev=>prev?{...prev,posts:prev.posts.filter(post=>post.id!==id)}:prev);setSelectedPostId(null);}}/></div></div>}
       <div className="mt-5">
         {tab === "posts" ? (
           isOwn ? <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]">
@@ -405,7 +413,7 @@ export default function ProfileView({ username }: { username?: string }) {
               <section className="rounded-2xl bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><h2 className="text-lg font-bold">Photos</h2><button type="button" onClick={() => setTab("photos")} className="text-sm font-semibold text-[#00696F]">See all photos</button></div><p className="mt-1 text-sm text-gray-500">{stats.photos} photos</p>{photos.length ? <div className="mt-4 grid grid-cols-3 gap-1.5 overflow-hidden rounded-xl">{photos.slice(0,9).map(photo => <button key={photo.id} type="button" onClick={() => setSelectedPostId(photo.postId)} className="aspect-square overflow-hidden bg-[#E7EEEE]"><img src={photo.url} alt="Open photo post" loading="lazy" className="size-full object-cover"/></button>)}</div> : <p className="mt-4 text-sm text-gray-500">No photos yet.</p>}</section>
             </aside>
             </div>
-            <div className="min-w-0 max-w-[640px] space-y-4"><Link href="/create-post" className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm"><UserAvatar avatarUrl={user.avatar} name={fullName(user)} size={40}/><span className="flex-1 rounded-full bg-[#F1F4F5] px-4 py-3 text-sm text-[#68777D]">What&apos;s on your mind, {user.firstName}?</span></Link><div className="rounded-2xl bg-white px-5 py-4 text-lg font-bold shadow-sm">Posts <span className="ml-2 text-sm font-normal text-gray-500">{stats.posts}</span></div>{posts.length ? posts.map(post => <PostCard key={post.id} post={post} compactMedia onDeleted={id => setData(prev => prev ? {...prev, posts: prev.posts.filter(item => item.id !== id)} : prev)}/>) : <p className="rounded-2xl bg-white px-5 py-10 text-center text-sm text-gray-500">No posts yet.</p>}</div>
+            <div className="min-w-0 max-w-[640px] space-y-4"><Link href="/create-post" className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm"><UserAvatar avatarUrl={user.avatar} name={fullName(user)} size={40}/><span className="flex-1 rounded-full bg-[#F1F4F5] px-4 py-3 text-sm text-[#68777D]">What&apos;s on your mind, {user.firstName}?</span></Link><div className="rounded-2xl bg-white px-5 py-4 text-lg font-bold shadow-sm">Posts <span className="ml-2 text-sm font-normal text-gray-500">{stats.posts}</span></div>{posts.length ? posts.map(post => <PostCard key={post.id} post={post} compactMedia showHiddenContent onPreferenceChanged={updatePostPreferences} onDeleted={id => setData(prev => prev ? {...prev, posts: prev.posts.filter(item => item.id !== id)} : prev)}/>) : <p className="rounded-2xl bg-white px-5 py-10 text-center text-sm text-gray-500">No posts yet.</p>}</div>
           </div> : <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {isOwn ? (
               <Link

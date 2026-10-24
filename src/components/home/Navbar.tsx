@@ -19,7 +19,7 @@ const NAV_ICONS = [
   { label: "Home", icon: "/figma/icons/nav-home.svg", href: "/" },
   { label: "Friends", icon: "/figma/icons/nav-groups.svg", href: "/friends" },
   { label: "Groups", icon: "/figma/icons/nav-friends.svg", href: "/groups" },
-  { label: "Marketplace", icon: "/figma/icons/nav-marketplace.svg", href: "/marketplace" },
+  { label: "Wallet", icon: "/figma/icons/wallet.svg", href: "/wallet" },
   { label: "Watch", icon: "/figma/icons/nav-watch.svg", href: "/watch" },
 ] as const;
 

@@ -4,6 +4,8 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { Info, Phone, Video, ArrowLeft } from "lucide-react";
 import { deleteMessageLocally, mergeHistory, mergeMessage } from "../../lib/chatMessages";
 import ChatProfilePanel from "./ChatProfilePanel";
+import SharedPostCard from "./SharedPostCard";
+import { sharedPostReference } from "../../lib/sharedPost";
 import { ChatListSkeleton, ChatMessagesSkeleton, ChatProfileSkeleton } from "./ChatSkeletons";
 import { callApi, type Call, startCall } from "../../lib/api/calls";
 import FigmaIcon from "../home/FigmaIcon";
@@ -67,6 +69,7 @@ function formatDayLabel(value: string) {
 function messagePreview(msg?: Message) {
   if (!msg) return "Say hello 👋";
   if (msg.isDeleted) return "Message deleted";
+  if (typeof window !== "undefined" && sharedPostReference(msg.body || "", window.location.origin)) return "Shared a post";
   if (msg.body?.trim()) return msg.body;
   if (msg.type === "IMAGE") return msg.fileName === "GIF" || msg.mediaUrl?.includes(".gif") ? "GIF" : "Photo";
   if (msg.type === "AUDIO") return "Audio";
@@ -1113,6 +1116,8 @@ export default function MessengerUI() {
                         return <div key={msg.id} id={'message-'+msg.id} className={'flex '+(mine?'justify-end':'justify-start')}><button disabled={isChatBlocked} onClick={()=>!isChatBlocked&&activePartner&&startCall(activePartner.id,record.type)} className="flex max-w-[85%] items-center gap-3 rounded-2xl border border-[#d9e8ea] bg-white px-4 py-3 text-left shadow-sm"><span className={'flex size-10 shrink-0 items-center justify-center rounded-full '+(record.status==='MISSED'?'bg-red-50 text-red-500':'bg-[#e4f2f2] text-[#00696F]')}>{record.type==='VIDEO'?<Video size={19}/>:<Phone size={19}/>}</span><span><span className="block text-sm font-semibold text-[#0B1C30]">{record.status==='MISSED'?'Missed ':''}{record.type==='VIDEO'?'Video call':'Audio call'}</span><span className="mt-1 block text-xs text-gray-500">{mine?'Outgoing':'Incoming'} · {record.status==='ENDED'?Math.floor(duration/60)+':'+String(duration%60).padStart(2,'0'):formatClock(msg.createdAt)}</span><span className="mt-1 block text-[11px] font-medium text-[#00696F]">{isChatBlocked ? "Connection unavailable" : "Tap to call back"}</span></span></button></div>;
                       }
                       const isMine = msg.senderId === currentUser?.id;
+                      const sharedPost = !msg.isDeleted && (msg.type === "TEXT" || msg.fileName === "Shared post")
+                        ? sharedPostReference(msg.body, window.location.origin) : null;
                       const sender =
                         activeChat?.members.find((member) => member.user.id === msg.senderId)?.user ||
                         msg.sender;
@@ -1150,10 +1155,9 @@ export default function MessengerUI() {
                             )}
 
                             <div
-                              className={`relative min-w-0 max-w-[360px] rounded-2xl px-3 py-2.5 shadow-sm ${
-                                isMine
+                              className={`relative min-w-0 max-w-[360px] rounded-2xl ${sharedPost ? "text-[#0B1C30]" : `px-3 py-2.5 shadow-sm ${isMine
                                   ? "bg-[#00696F] text-white rounded-br-none"
-                                  : "bg-[#E5EEFF] text-[#0B1C30] rounded-bl-none"
+                                  : "bg-[#E5EEFF] text-[#0B1C30] rounded-bl-none"}`
                               } ${msg.isDeleted ? "italic opacity-70" : ""}`}
                             >
                               {isGroupChat && !isMine && sender?.firstName ? (
@@ -1161,7 +1165,8 @@ export default function MessengerUI() {
                                   {sender.firstName} {"lastName" in sender ? sender.lastName : ""}
                                 </p>
                               ) : null}
-                              {msg.mediaUrl && !msg.isDeleted && (
+                              {sharedPost ? <SharedPostCard postId={sharedPost.postId}/> : null}
+                              {msg.mediaUrl && !msg.isDeleted && !sharedPost && (
                                 <div className="mb-2">
                                   {msg.type === "IMAGE" && (
                                     <div className="relative">
@@ -1204,12 +1209,12 @@ export default function MessengerUI() {
                                 </div>
                               )}
 
-                              <p className="whitespace-pre-wrap [overflow-wrap:anywhere] text-[14px] leading-[1.55]">
-                                {renderMessageBody(msg.body, isMine)}
-                              </p>
+                              {!sharedPost || sharedPost.note ? <p className={`whitespace-pre-wrap [overflow-wrap:anywhere] text-[14px] leading-[1.55] ${sharedPost ? "mt-2" : ""}`}>
+                                {renderMessageBody(sharedPost ? sharedPost.note : msg.body, isMine)}
+                              </p> : null}
                               <p
                                 className={`mt-1 flex items-center gap-0.5 text-[10px] ${
-                                  isMine ? "justify-end text-white/70" : "text-[#6B7280]"
+                                  isMine ? `justify-end ${sharedPost ? "text-[#6B7280]" : "text-white/70"}` : "text-[#6B7280]"
                                 }`}
                               >
                                 <span>
