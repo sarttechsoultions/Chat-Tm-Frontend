@@ -1,5 +1,2 @@
-import WalletDashboard from "../../../../components/wallet/WalletDashboard";
-
-export default function WalletDashboardPage() {
-  return <WalletDashboard step="dashboard" />;
-}
+import WalletEntry from "../../../../components/wallet/WalletEntry";
+export default function WalletDashboardPage(){return <WalletEntry/>;}

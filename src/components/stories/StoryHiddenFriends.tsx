@@ -1,0 +1,9 @@
+"use client";
+import { useEffect, useState } from "react";
+import { listFriends, type FriendUser } from "../../lib/auth";
+import { getHiddenStoryFriends, saveHiddenStoryFriends } from "../../lib/api/stories";
+export default function StoryHiddenFriends() {
+ const [open,setOpen]=useState(false), [friends,setFriends]=useState<FriendUser[]>([]), [ids,setIds]=useState<string[]>([]), [busy,setBusy]=useState(false), [ready,setReady]=useState(false), [error,setError]=useState("");
+ useEffect(()=>{if(!open)return; let cancelled=false;setReady(false);setError("");Promise.all([listFriends(),getHiddenStoryFriends()]).then(([f,h])=>{if(!cancelled){setFriends(f.items);setIds(h.ids.filter(id=>f.items.some(friend=>friend.id===id)));setReady(true);}}).catch(()=>{if(!cancelled)setError("Unable to load friends. Close and reopen to retry.");});return()=>{cancelled=true;};},[open]);
+ return <div className="mt-4 border-t pt-3"><button type="button" onClick={()=>setOpen(!open)} className="text-sm font-semibold text-[#00696F]">Hide story from…</button>{open&&<><p className="my-2 text-xs text-gray-500">Applies to all your current and future stories, including Close Friends.</p><div className="max-h-36 overflow-y-auto">{!ready&&!error&&<p className="text-xs">Loading…</p>}{ready&&friends.map(f=><label key={f.id} className="flex items-center gap-2 py-2 text-sm"><input type="checkbox" checked={ids.includes(f.id)} onChange={()=>setIds(items=>items.includes(f.id)?items.filter(id=>id!==f.id):[...items,f.id])}/>{f.firstName} {f.lastName}</label>)}</div>{error&&<p role="alert" className="text-xs text-red-600">{error}</p>}<button disabled={busy||!ready} onClick={async()=>{setBusy(true);try{await saveHiddenStoryFriends(ids);setOpen(false);}catch{setError("Unable to save. Try again.");}finally{setBusy(false);}}} className="mt-2 rounded-lg bg-[#00696F] px-3 py-2 text-xs text-white disabled:opacity-40">{busy?"Saving…":`Save hidden list · ${ids.length}`}</button></>}</div>;
+}

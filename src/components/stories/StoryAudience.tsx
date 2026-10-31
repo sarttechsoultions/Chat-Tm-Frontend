@@ -1,4 +1,5 @@
 "use client";
+import StoryHiddenFriends from "./StoryHiddenFriends";
 import { useEffect, useState } from "react";
 import { listFriends, type FriendUser } from "../../lib/auth";
 import { getCloseFriends, saveCloseFriends } from "../../lib/api/stories";
@@ -10,5 +11,6 @@ export default function StoryAudience({value,onChange}:{value:string;onChange:(v
  {(["FRIENDS","CLOSE_FRIENDS"] as const).map(v=><label key={v} className="flex items-center gap-3 rounded-xl p-3 text-sm"><input type="radio" name="story-audience" checked={value===v} onChange={()=>onChange(v)} className="accent-[#00696F]"/>{v==="FRIENDS"?"Friends":"Close friends"}</label>)}
  {value === "CLOSE_FRIENDS" ? <><p className="mb-2 mt-3 text-xs text-gray-500">Select and save your close friends. Only current friends can view your stories.</p><input aria-label="Search friends" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search friends…" className="mb-3 w-full rounded-lg bg-gray-50 p-3 text-sm"/>
  <div className="max-h-52 overflow-y-auto">{!ready && !error && <p className="p-3 text-sm">Loading friends…</p>}{ready && !friends.length && <p className="p-3 text-sm text-gray-500">Add friends first to build your close friends list.</p>}{friends.filter(f=>(f.firstName+" "+f.lastName+" "+f.username).toLowerCase().includes(query.toLowerCase())).map(f=><label key={f.id} className="flex gap-3 p-3 text-sm"><input type="checkbox" checked={draft.includes(f.id)} onChange={()=>setDraft(current=>current.includes(f.id)?current.filter(id=>id!==f.id):[...current,f.id])} className="accent-[#00696F]"/>{f.firstName} {f.lastName}<span className="ml-auto text-xs text-gray-500">@{f.username}</span></label>)}</div></> : <p className="mt-3 text-sm text-gray-500">All your friends can see this story.</p>}
+ <StoryHiddenFriends/>
  {value === "CLOSE_FRIENDS" && error && <p role="alert" className="my-2 text-xs text-red-600">{error}</p>}<button disabled={busy || (value === "CLOSE_FRIENDS" && !ready)} onClick={async()=>{if (value === "FRIENDS") { setOpen(false); return; } setBusy(true);setError("");try{await saveCloseFriends(draft);setIds(draft);setOpen(false);}catch{setError("Unable to save. Try again.");}finally{setBusy(false);}}} className="mt-4 w-full rounded-xl bg-[#00696F] py-3 text-sm font-semibold text-white disabled:opacity-40">{busy ? "Saving…" : value === "FRIENDS" ? "Done" : `Save audience · ${draft.length} close friends`}</button></div></div>}</>;
 }

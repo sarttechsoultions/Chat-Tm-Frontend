@@ -10,6 +10,7 @@ import { createStory, type StoryTextLayer } from "../../lib/api/stories";
 const colors = ["#00696F", "#284b8b", "#923b76", "#b35232", "#243746"];
 export default function CreateStoryUI() {
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [allowReplies, setAllowReplies] = useState(true);
   const [audience, setAudience] = useState("FRIENDS");
   const [imageTransform, setImageTransform] = useState(initialImageTransform);
   const [imageOpen, setImageOpen] = useState(false);
@@ -53,12 +54,12 @@ export default function CreateStoryUI() {
         if (!allLayers().length) throw new Error("Write something for your story.");
         const canvas = document.createElement("canvas"); canvas.width = 1080; canvas.height = 1920; const ctx = canvas.getContext("2d")!; ctx.fillStyle = color; ctx.fillRect(0, 0, 1080, 1920);         const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, "image/png")); if (!blob) throw new Error("Unable to prepare story"); media = new File([blob], "story.png", { type: "image/png" });
       }
-      if (!media) throw new Error("Choose a photo or video."); await createStory(media, "", { imageTransform: mode === "photo" && file?.type.startsWith("image/") ? imageTransform : undefined, texts: allLayers(), fontFamily, bold, italic, align, textPosition: position, timePosition, time, textSize: size, textColor: ink }, music, audience, setUploadProgress); router.push("/"); router.refresh();
+      if (!media) throw new Error("Choose a photo or video."); await createStory(media, "", { allowReplies, imageTransform: mode === "photo" && file?.type.startsWith("image/") ? imageTransform : undefined, texts: allLayers(), fontFamily, bold, italic, align, textPosition: position, timePosition, time, textSize: size, textColor: ink }, music, audience, setUploadProgress); router.push("/"); router.refresh();
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to share story"); } finally { setBusy(false); }
   }
   return <div className="fixed inset-0 z-[60] flex flex-col bg-black md:static md:z-auto md:mx-auto md:grid md:w-full md:max-w-[1360px] md:grid-cols-[260px_1fr] md:gap-6 md:bg-transparent md:p-3 md:pb-24">
     <section className="hidden h-fit rounded-2xl bg-white p-5 md:block"><Link href="/" className="text-sm text-[#00696F]">← Back to home</Link><h1 className="mt-4 text-2xl font-bold">Create story</h1><p className="mt-2 text-sm text-gray-500">Share a moment. Visible for 24 hours.</p>
-      <div className="mt-4"><StoryAudience value={audience} onChange={setAudience}/></div>
+      <div className="mt-4"><StoryAudience value={audience} onChange={setAudience}/><label className="mt-3 flex items-center gap-2 text-sm"><input type="checkbox" checked={allowReplies} onChange={e => setAllowReplies(e.target.checked)} className="accent-[#00696F]"/>Allow message replies</label></div>
       <div className="my-5 flex gap-2">{["photo", "text"].map(item => <button key={item} onClick={() => { setMode(item); if (item === "text") setTextOpen(true); }} className={`rounded-lg px-4 py-2 text-sm ${mode === item ? "bg-[#00696F] text-white" : "bg-gray-100"}`}>{item === "photo" ? "Photo / video" : "Text"}</button>)}</div>
       {mode === "photo" ? <><input ref={input} type="file" accept="image/jpeg,image/png,image/webp,video/mp4" className="hidden" onChange={e => choose(e.target.files?.[0])} /><button onClick={() => input.current?.click()} className="w-full rounded-xl border border-dashed border-[#00696F] p-4 text-sm text-[#00696F]">{file ? "Change media" : "Choose photo or video"}</button><p className="mt-2 text-xs text-gray-500">Up to 50MB · Videos over 30 seconds use only the first 30 seconds.</p></> : <div className="flex gap-3">{colors.map(value => <button key={value} aria-label={`Background ${value}`} onClick={() => setColor(value)} style={{ background: value }} className={`size-8 rounded-full ${color === value ? "ring-2 ring-[#00696F] ring-offset-2" : ""}`} />)}</div>}
       {mode === "photo" && file?.type.startsWith("image/") && <button onClick={()=>{setImageOpen(!imageOpen);setTextOpen(false);}} className="mt-4 w-full rounded-xl bg-[#edf5f5] p-3 text-left text-sm font-semibold text-[#00696F]">⤢ Edit image</button>}
@@ -121,6 +122,7 @@ export default function CreateStoryUI() {
     {busy && <div role="status" className="fixed inset-x-4 bottom-28 z-[95] rounded-xl bg-white p-3 text-sm text-[#00696F] shadow-lg md:inset-x-auto md:bottom-6 md:left-1/2 md:w-80 md:-translate-x-1/2"><p className="mb-2">{uploadProgress >= 100 ? "Upload complete. Preparing your story…" : `Uploading story · ${uploadProgress}%`}</p><progress aria-label="Story upload progress" max={100} value={uploadProgress} className="h-2 w-full accent-[#00696F]"/></div>}
     {file?.type.startsWith("video/") && !busy && <p className="absolute inset-x-4 bottom-[190px] z-20 rounded-lg bg-black/60 px-3 py-2 text-center text-xs text-white md:hidden">Maximum 30 seconds. Longer videos use the first 30 seconds.</p>}
     {music && <button onClick={() => setMusic(null)} className="absolute right-4 top-20 z-30 rounded-full bg-black/60 px-3 py-2 text-xs text-white md:hidden">Remove music</button>}
+    <label className="absolute left-4 top-20 z-30 flex items-center gap-2 rounded-full bg-black/60 px-3 py-2 text-xs text-white md:hidden"><input type="checkbox" checked={allowReplies} onChange={e => setAllowReplies(e.target.checked)} className="accent-[#00696F]"/>Allow replies</label>
     <footer className="z-20 flex h-[105px] shrink-0 items-center justify-between gap-4 bg-black px-5 pb-[env(safe-area-inset-bottom)] text-white md:hidden"><StoryAudience value={audience} onChange={setAudience}/><button disabled={busy||(mode==="text"?!allLayers().length:!file)} onClick={()=>void share()} className="rounded-2xl bg-[#00696F] px-8 py-3 text-base font-semibold disabled:opacity-40">{busy ? (uploadProgress >= 100 ? "Processing…" : `Uploading ${uploadProgress}%`) : "Share"}</button></footer>
     {error && <p role="alert" className="absolute inset-x-3 top-20 z-[90] rounded-xl bg-white p-3 text-sm text-red-600 md:hidden">{error}</p>}
   </div>;

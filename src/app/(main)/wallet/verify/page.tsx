@@ -1,5 +1,2 @@
-import WalletFlow from "../../../../components/wallet/WalletFlow";
-
-export default function WalletVerifyPage() {
-  return <WalletFlow step="verify" />;
-}
+import WalletEntry from "../../../../components/wallet/WalletEntry";
+export default function WalletSetupPage(){return <WalletEntry/>;}

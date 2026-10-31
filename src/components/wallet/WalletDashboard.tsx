@@ -1,5 +1,6 @@
 "use client";
 
+import WalletExperience from "./WalletExperience";
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -430,6 +431,7 @@ function AddedScreen() {
 }
 
 export default function WalletDashboard({ step }: { step: DashboardStep }) {
+  if (step === "dashboard") return <WalletExperience/>;
   if (step === "add") return <AddMoneyScreen />;
   if (step === "payment") return <PaymentScreen />;
   if (step === "added") return <AddedScreen />;

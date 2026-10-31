@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import SponsoredAd from "../ads/SponsoredAd";
 import Image from "next/image";
 import { UserAvatar } from "../ui/UserAvatar";
 
@@ -28,37 +29,7 @@ const ATTENDEES = [
 export default function RightSidebar() {
   return (
     <aside className="flex h-full w-full flex-col gap-6 overflow-y-auto py-2 font-sans no-scrollbar select-none">
-      <div className="bg-white rounded-[16px] p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-[16px] font-bold text-[#111827] leading-6">Sponsored</h3>
-          <button type="button" aria-label="More">
-            <span className="relative w-[14px] h-[4px] overflow-clip inline-flex">
-              <img src="/figma/icons/more-h-dark.svg" alt="" width={14} height={4} className="size-full object-contain" />
-            </span>
-          </button>
-        </div>
-
-        <div className="flex items-start gap-3 cursor-pointer group">
-          <div className="relative size-[96px] rounded-[8px] overflow-hidden shrink-0">
-            <Image
-              src="/figma/photos/macbook.png"
-              alt="MacBook Pro"
-              fill
-              sizes="96px"
-              className="object-cover group-hover:scale-105 transition-transform duration-300"
-            />
-          </div>
-          <div className="flex flex-col flex-1 min-w-0">
-            <h4 className="text-[14px] font-bold text-[#111827] leading-[17.5px]">
-              The New MacBook Pro M3 — Supercharged for pros.
-            </h4>
-            <span className="text-[12px] text-[#6B7280] mt-2">apple.com</span>
-            <button className="mt-2 w-full bg-[#FAF5FF] text-[#00696F] font-semibold text-[12px] py-1.5 px-3 rounded-[8px]">
-              Learn More
-            </button>
-          </div>
-        </div>
-      </div>
+      <SponsoredAd compact/>
 
       <div className="bg-white rounded-[16px] p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] flex flex-col gap-4">
         <div className="flex items-center justify-between">

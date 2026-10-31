@@ -1,5 +1,2 @@
-import AdCreateFlow from "../../../../components/ads/AdCreateFlow";
-
-export default function AdsCreatePage() {
-  return <AdCreateFlow />;
-}
+import AdsWorkspace from "../../../../components/ads/AdsWorkspace";
+export default function AdsCreatePage(){return <AdsWorkspace create/>;}

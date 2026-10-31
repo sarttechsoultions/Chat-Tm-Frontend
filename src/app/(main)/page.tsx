@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import CreatePostCard from "../../components/home/CreatePostCard";
 import PostSkeleton from "../../components/home/PostSkeleton";
+import SponsoredAd from "../../components/ads/SponsoredAd";
 import StoriesSection from "../../components/home/StoriesSection";
 import PostCard from "../../components/home/PostCard";
 import CreatePostPage from "../../components/posts/CreatePostPage";
@@ -85,7 +86,7 @@ function FeedResults() {
   return (
     <div className="mx-auto flex w-full max-w-[604px] flex-col gap-4 sm:gap-6">
       <CreatePostCard onOpenModal={() => setCreateModalOpen(true)} />
-      <StoriesSection />
+      <StoriesSection /><SponsoredAd/>
 
       {error ? (
         <div className="rounded-[16px] bg-white p-4 text-center shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
