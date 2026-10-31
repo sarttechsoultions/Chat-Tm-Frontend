@@ -8,6 +8,7 @@ import VideoPlayer from "../../../components/posts/VideoPlayer";
 import ReelOverlay from "../../../components/posts/ReelOverlay";
 import ReelShare from "../../../components/posts/ReelShare";
 import ReelComments from "../../../components/posts/ReelComments";
+import ReelSponsoredAd from "../../../components/ads/ReelSponsoredAd";
 import { UserAvatar } from "../../../components/ui/UserAvatar";
 import { fetchPost, fetchPosts, togglePostLike, type PostItem } from "../../../lib/api/posts";
 import { useCurrentUser } from "../../../components/hooks/useCurrentUser";
@@ -75,9 +76,9 @@ function WatchPageContent() {
       {!loading && !visible.length ? <div className="mx-auto max-w-[440px] rounded-2xl bg-white p-10 text-center"><Clapperboard className="mx-auto mb-4 text-[#00696F]" size={36} /><h2 className="font-semibold">{tab === "For you" ? "No videos yet" : `No ${tab.toLowerCase()} yet`}</h2><p className="mt-2 text-sm text-[#6B7280]">{tab === "For you" ? "Share a video post to start the reels feed." : "Your reels will appear here."}</p></div> : null}
       <div className="flex min-h-0 flex-1 gap-4">
       {loading && <ReelsSkeleton />}
-      {!loading && visible.length ? <div className="mx-auto flex min-h-0 min-w-0 w-full flex-1 snap-y snap-mandatory flex-col overflow-y-auto bg-[#101820] no-scrollbar sm:max-w-[440px] sm:rounded-2xl">{visible.map(post => {
+      {!loading && visible.length ? <div className="mx-auto flex min-h-0 min-w-0 w-full flex-1 snap-y snap-mandatory flex-col overflow-y-auto bg-[#101820] no-scrollbar sm:max-w-[440px] sm:rounded-2xl">{visible.map((post, index) => {
         const media = post.media.find(m => m.type.toLowerCase().includes("video"))!;
-        return <article key={post.id} className="h-full min-h-full shrink-0 snap-start snap-always overflow-hidden bg-[#101820] shadow-sm md:min-h-full md:rounded-2xl" onPlayCapture={() => markViewed(post.id)}>
+        return <div key={post.id} className="contents"><article className="h-full min-h-full shrink-0 snap-start snap-always overflow-hidden bg-[#101820] shadow-sm md:min-h-full md:rounded-2xl" onPlayCapture={() => markViewed(post.id)}>
           <div className="relative flex h-full min-h-0 overflow-hidden bg-[#101820] md:rounded-2xl">
             <VideoPlayer src={media.url} reel />
             <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent px-4 pb-12 pt-24 pr-20 text-white">
@@ -93,7 +94,7 @@ function WatchPageContent() {
             </div>
           </div>
 
-        </article>;
+        </article>{tab === "For you" && (index === 1 || (visible.length === 1 && index === 0)) ? <ReelSponsoredAd /> : null}</div>;
       })}</div> : null}
       {expanded && posts.find(post => post.id === expanded) && <ReelOverlay label="Comments" sidePanel onClose={() => setExpanded("")}><ReelComments key={expanded} post={posts.find(post => post.id === expanded)!} onClose={() => setExpanded("")} onCountChanged={count => setPosts(current => current.map(item => item.id === expanded ? { ...item, commentsCount: count } : item))}/></ReelOverlay>}
       </div>

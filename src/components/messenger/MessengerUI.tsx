@@ -5,6 +5,8 @@ import { Info, Phone, Video, ArrowLeft } from "lucide-react";
 import { deleteMessageLocally, mergeHistory, mergeMessage } from "../../lib/chatMessages";
 import ChatProfilePanel from "./ChatProfilePanel";
 import SharedPostCard from "./SharedPostCard";
+import StoryReplyPreview from "./StoryReplyPreview";
+import { storyReplyReference } from "../../lib/storyReply";
 import { sharedPostReference } from "../../lib/sharedPost";
 import { ChatListSkeleton, ChatMessagesSkeleton, ChatProfileSkeleton } from "./ChatSkeletons";
 import { callApi, type Call, startCall } from "../../lib/api/calls";
@@ -70,6 +72,8 @@ function messagePreview(msg?: Message) {
   if (!msg) return "Say hello 👋";
   if (msg.isDeleted) return "Message deleted";
   if (typeof window !== "undefined" && sharedPostReference(msg.body || "", window.location.origin)) return "Shared a post";
+  const storyReply = storyReplyReference(msg.body || "");
+  if (storyReply) return `Story reply · ${storyReply.body}`;
   if (msg.body?.trim()) return msg.body;
   if (msg.type === "IMAGE") return msg.fileName === "GIF" || msg.mediaUrl?.includes(".gif") ? "GIF" : "Photo";
   if (msg.type === "AUDIO") return "Audio";
@@ -1116,6 +1120,7 @@ export default function MessengerUI() {
                         return <div key={msg.id} id={'message-'+msg.id} className={'flex '+(mine?'justify-end':'justify-start')}><button disabled={isChatBlocked} onClick={()=>!isChatBlocked&&activePartner&&startCall(activePartner.id,record.type)} className="flex max-w-[85%] items-center gap-3 rounded-2xl border border-[#d9e8ea] bg-white px-4 py-3 text-left shadow-sm"><span className={'flex size-10 shrink-0 items-center justify-center rounded-full '+(record.status==='MISSED'?'bg-red-50 text-red-500':'bg-[#e4f2f2] text-[#00696F]')}>{record.type==='VIDEO'?<Video size={19}/>:<Phone size={19}/>}</span><span><span className="block text-sm font-semibold text-[#0B1C30]">{record.status==='MISSED'?'Missed ':''}{record.type==='VIDEO'?'Video call':'Audio call'}</span><span className="mt-1 block text-xs text-gray-500">{mine?'Outgoing':'Incoming'} · {record.status==='ENDED'?Math.floor(duration/60)+':'+String(duration%60).padStart(2,'0'):formatClock(msg.createdAt)}</span><span className="mt-1 block text-[11px] font-medium text-[#00696F]">{isChatBlocked ? "Connection unavailable" : "Tap to call back"}</span></span></button></div>;
                       }
                       const isMine = msg.senderId === currentUser?.id;
+                      const storyReply = !msg.isDeleted && msg.type === "TEXT" ? storyReplyReference(msg.body || "") : null;
                       const sharedPost = !msg.isDeleted && (msg.type === "TEXT" || msg.fileName === "Shared post")
                         ? sharedPostReference(msg.body, window.location.origin) : null;
                       const sender =
@@ -1155,7 +1160,7 @@ export default function MessengerUI() {
                             )}
 
                             <div
-                              className={`relative min-w-0 max-w-[360px] rounded-2xl ${sharedPost ? "text-[#0B1C30]" : `px-3 py-2.5 shadow-sm ${isMine
+                              className={`relative min-w-0 max-w-[360px] ${storyReply ? "rounded-lg" : "rounded-2xl"} ${sharedPost ? "text-[#0B1C30]" : `${storyReply ? "p-1.5" : "px-3 py-2.5"} shadow-sm ${isMine
                                   ? "bg-[#00696F] text-white rounded-br-none"
                                   : "bg-[#E5EEFF] text-[#0B1C30] rounded-bl-none"}`
                               } ${msg.isDeleted ? "italic opacity-70" : ""}`}
@@ -1209,8 +1214,9 @@ export default function MessengerUI() {
                                 </div>
                               )}
 
+                              {storyReply && <StoryReplyPreview id={storyReply.id} mine={isMine}/>}
                               {!sharedPost || sharedPost.note ? <p className={`whitespace-pre-wrap [overflow-wrap:anywhere] text-[14px] leading-[1.55] ${sharedPost ? "mt-2" : ""}`}>
-                                {renderMessageBody(sharedPost ? sharedPost.note : msg.body, isMine)}
+                                {renderMessageBody(sharedPost ? sharedPost.note : storyReply ? storyReply.body : msg.body, isMine)}
                               </p> : null}
                               <p
                                 className={`mt-1 flex items-center gap-0.5 text-[10px] ${

@@ -4,10 +4,13 @@ import StoryAudience from "./StoryAudience";
 import StoryImage, { initialImageTransform } from "./StoryImage";
 import { StoryVideo } from "./StoryTools";
 import Link from "next/link";
+import { Clock, Music } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createStory, type StoryTextLayer } from "../../lib/api/stories";
 const colors = ["#00696F", "#284b8b", "#923b76", "#b35232", "#243746"];
 export default function CreateStoryUI() {
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [allowReplies, setAllowReplies] = useState(true);
   const [audience, setAudience] = useState("FRIENDS");
   const [imageTransform, setImageTransform] = useState(initialImageTransform);
   const [imageOpen, setImageOpen] = useState(false);
@@ -44,33 +47,33 @@ export default function CreateStoryUI() {
     setLayers(allLayers()); setSelectedId(crypto.randomUUID()); setText(""); setPosition({ x: 50, y: Math.min(80, 40 + allLayers().length * 8) }); setTextOpen(true);
   }
   async function share() {
-    if (busy) return; setBusy(true); setError("");
+    if (busy) return; setUploadProgress(0); setBusy(true); setError("");
     try {
       let media = file;
       if (mode === "text") {
         if (!allLayers().length) throw new Error("Write something for your story.");
         const canvas = document.createElement("canvas"); canvas.width = 1080; canvas.height = 1920; const ctx = canvas.getContext("2d")!; ctx.fillStyle = color; ctx.fillRect(0, 0, 1080, 1920);         const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, "image/png")); if (!blob) throw new Error("Unable to prepare story"); media = new File([blob], "story.png", { type: "image/png" });
       }
-      if (!media) throw new Error("Choose a photo or video."); await createStory(media, "", { imageTransform: mode === "photo" && file?.type.startsWith("image/") ? imageTransform : undefined, texts: allLayers(), fontFamily, bold, italic, align, textPosition: position, timePosition, time, textSize: size, textColor: ink }, music, audience); router.push("/"); router.refresh();
+      if (!media) throw new Error("Choose a photo or video."); await createStory(media, "", { allowReplies, imageTransform: mode === "photo" && file?.type.startsWith("image/") ? imageTransform : undefined, texts: allLayers(), fontFamily, bold, italic, align, textPosition: position, timePosition, time, textSize: size, textColor: ink }, music, audience, setUploadProgress); router.push("/"); router.refresh();
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to share story"); } finally { setBusy(false); }
   }
   return <div className="fixed inset-0 z-[60] flex flex-col bg-black md:static md:z-auto md:mx-auto md:grid md:w-full md:max-w-[1360px] md:grid-cols-[260px_1fr] md:gap-6 md:bg-transparent md:p-3 md:pb-24">
     <section className="hidden h-fit rounded-2xl bg-white p-5 md:block"><Link href="/" className="text-sm text-[#00696F]">← Back to home</Link><h1 className="mt-4 text-2xl font-bold">Create story</h1><p className="mt-2 text-sm text-gray-500">Share a moment. Visible for 24 hours.</p>
-      <div className="mt-4"><StoryAudience value={audience} onChange={setAudience}/></div>
+      <div className="mt-4"><StoryAudience value={audience} onChange={setAudience}/><label className="mt-3 flex items-center gap-2 text-sm"><input type="checkbox" checked={allowReplies} onChange={e => setAllowReplies(e.target.checked)} className="accent-[#00696F]"/>Allow message replies</label></div>
       <div className="my-5 flex gap-2">{["photo", "text"].map(item => <button key={item} onClick={() => { setMode(item); if (item === "text") setTextOpen(true); }} className={`rounded-lg px-4 py-2 text-sm ${mode === item ? "bg-[#00696F] text-white" : "bg-gray-100"}`}>{item === "photo" ? "Photo / video" : "Text"}</button>)}</div>
-      {mode === "photo" ? <><input ref={input} type="file" accept="image/jpeg,image/png,image/webp,video/mp4" className="hidden" onChange={e => choose(e.target.files?.[0])} /><button onClick={() => input.current?.click()} className="w-full rounded-xl border border-dashed border-[#00696F] p-4 text-sm text-[#00696F]">{file ? "Change media" : "Choose photo or video"}</button><p className="mt-2 text-xs text-gray-500">Up to 50MB</p></> : <div className="flex gap-3">{colors.map(value => <button key={value} aria-label={`Background ${value}`} onClick={() => setColor(value)} style={{ background: value }} className={`size-8 rounded-full ${color === value ? "ring-2 ring-[#00696F] ring-offset-2" : ""}`} />)}</div>}
+      {mode === "photo" ? <><input ref={input} type="file" accept="image/jpeg,image/png,image/webp,video/mp4" className="hidden" onChange={e => choose(e.target.files?.[0])} /><button onClick={() => input.current?.click()} className="w-full rounded-xl border border-dashed border-[#00696F] p-4 text-sm text-[#00696F]">{file ? "Change media" : "Choose photo or video"}</button><p className="mt-2 text-xs text-gray-500">Up to 50MB · Videos over 30 seconds use only the first 30 seconds.</p></> : <div className="flex gap-3">{colors.map(value => <button key={value} aria-label={`Background ${value}`} onClick={() => setColor(value)} style={{ background: value }} className={`size-8 rounded-full ${color === value ? "ring-2 ring-[#00696F] ring-offset-2" : ""}`} />)}</div>}
       {mode === "photo" && file?.type.startsWith("image/") && <button onClick={()=>{setImageOpen(!imageOpen);setTextOpen(false);}} className="mt-4 w-full rounded-xl bg-[#edf5f5] p-3 text-left text-sm font-semibold text-[#00696F]">⤢ Edit image</button>}
       <div className="mt-5 space-y-2 border-t border-[#e5eeee] pt-4">
 <button aria-expanded={textOpen} onClick={()=>{setImageOpen(false);setTextOpen(!textOpen);}} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold text-[#0B1C30] hover:bg-[#edf5f5]"><span className="flex size-9 items-center justify-center rounded-full bg-[#e5f0f0] text-lg text-[#00696F]">Aa</span>{text ? "Edit selected text" : "Add text"}<span className="ml-auto text-gray-400">›</span></button>
 <button onClick={addText} className="w-full rounded-xl border border-[#cce4e4] p-3 text-left text-sm font-semibold text-[#00696F]">＋ Add another text</button>
 {layers.filter(layer=>layer.id!==selectedId).map(layer=><button key={layer.id} onClick={()=>selectLayer(layer)} className="block w-full truncate rounded-lg bg-gray-50 px-3 py-2 text-left text-xs">Aa · {layer.text}</button>)}
-      <button onClick={()=>setTime(time ? "" : new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}))} className="w-full rounded-xl bg-[#edf5f5] p-3 text-left text-sm text-[#00696F]">◷ {time ? "Remove time" : "Add time"}</button>
+      <button onClick={()=>setTime(time ? "" : new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}))} className="w-full rounded-xl bg-[#edf5f5] p-3 text-left text-sm text-[#00696F]"><Clock aria-hidden="true" size={16} className="inline-block align-middle" /> {time ? "Remove time" : "Add time"}</button>
       <input ref={musicInput} type="file" accept="audio/mpeg,audio/wav,audio/mp4,audio/ogg" className="hidden" onChange={e=>{const f=e.target.files?.[0];if(f && f.type.startsWith("audio/") && f.size<=10485760)setMusic(f);else if(f)setError("Choose audio up to 10MB.");}} />
-      <button onClick={()=>musicInput.current?.click()} className="w-full rounded-xl bg-[#edf5f5] p-3 text-left text-sm text-[#00696F]">♫ {music?.name || "Add music"}</button>
+      <button onClick={()=>musicInput.current?.click()} className="w-full rounded-xl bg-[#edf5f5] p-3 text-left text-sm text-[#00696F]"><Music aria-hidden="true" size={16} className="inline-block align-middle" /> {music?.name || "Add music"}</button>
       {musicUrl && <><audio src={musicUrl} controls className="w-full"/><button onClick={()=>setMusic(null)} className="text-xs text-red-600">Remove music</button></>}
       </div>
       {error && <p role="alert" className="my-3 text-sm text-red-600">{error}</p>}
-      <button disabled={busy || (mode === "text" ? !allLayers().length : !file)} onClick={() => void share()} className="mt-4 w-full rounded-xl bg-[#00696F] py-3 font-semibold text-white disabled:opacity-40">{busy ? "Sharing…" : "Share to story"}</button>
+      <button disabled={busy || (mode === "text" ? !allLayers().length : !file)} onClick={() => void share()} className="mt-4 w-full rounded-xl bg-[#00696F] py-3 font-semibold text-white disabled:opacity-40">{busy ? (uploadProgress >= 100 ? "Processing…" : `Uploading ${uploadProgress}%`) : "Share to story"}</button>
     </section>
     <section className="relative min-h-0 flex-1 overflow-hidden bg-black md:overflow-visible md:rounded-2xl md:bg-white md:p-3"><h2 className="mb-3 hidden text-sm font-semibold md:block">Preview</h2><div className={textOpen || imageOpen ? "grid h-full items-start gap-4 md:h-auto lg:grid-cols-[minmax(0,1fr)_264px]" : "grid h-full md:h-auto"}>{imageOpen && mode === "photo" && file?.type.startsWith("image/") && <div className="fixed inset-x-0 bottom-0 z-[80] max-h-[65dvh] overflow-y-auto rounded-t-2xl bg-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-lg md:static md:mb-4 md:rounded-2xl md:border md:border-[#dce8e8] lg:col-start-2 lg:row-start-1 lg:w-[264px]">
 <h3 className="mb-3 text-sm font-semibold">Edit image</h3><p className="mb-4 text-xs text-gray-500">Drag to move. Pinch with two fingers to zoom and rotate.</p>
@@ -105,18 +108,22 @@ export default function CreateStoryUI() {
     </div></div></section>
     <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-3 bg-gradient-to-b from-black/60 to-transparent px-4 pb-8 pt-[calc(1rem+env(safe-area-inset-top))] text-white md:hidden">
       <Link href="/" aria-label="Close story editor" className="pointer-events-auto flex size-10 items-center justify-center rounded-full bg-black/30 text-xl">←</Link>
-      <button onClick={()=>musicInput.current?.click()} className="pointer-events-auto max-w-[65%] truncate rounded-full bg-black/40 px-5 py-2 text-sm">♫ {music?.name || "Add music"}</button>
+      <button onClick={()=>musicInput.current?.click()} className="pointer-events-auto max-w-[65%] truncate rounded-full bg-black/40 px-5 py-2 text-sm"><Music aria-hidden="true" size={16} className="inline-block align-middle" /> {music?.name || "Add music"}</button>
       <button onClick={()=>{setMode(mode==="text"?"photo":"text");}} className="pointer-events-auto rounded-full bg-black/30 px-3 py-2 text-xs">{mode==="text"?"Photo":"Text"}</button>
     </div>
     <div className="absolute inset-x-0 bottom-[105px] z-20 flex justify-center gap-4 bg-gradient-to-t from-black/65 to-transparent px-4 pb-4 pt-8 text-white md:hidden">
-      <button onClick={()=>musicInput.current?.click()} className="flex flex-col items-center gap-1 text-xs"><span className="flex size-12 items-center justify-center rounded-full bg-white/20 text-2xl">♫</span>Music</button>
+      <button onClick={()=>musicInput.current?.click()} className="flex flex-col items-center gap-1 text-xs"><span className="flex size-12 items-center justify-center rounded-full bg-white/20 text-2xl"><Music aria-hidden="true" size={16} className="inline-block align-middle" /></span>Music</button>
       <button onClick={addText} className="flex flex-col items-center gap-1 text-xs"><span className="flex size-12 items-center justify-center rounded-full bg-white/20 text-xl">Aa</span>Text</button>
-      <button onClick={()=>setTime(time?"":new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}))} className="flex flex-col items-center gap-1 text-xs"><span className="flex size-12 items-center justify-center rounded-full bg-white/20 text-2xl">◷</span>Time</button>
+      <button onClick={()=>setTime(time?"":new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}))} className="flex flex-col items-center gap-1 text-xs"><span className="flex size-12 items-center justify-center rounded-full bg-white/20 text-2xl"><Clock aria-hidden="true" size={16} className="inline-block align-middle" /></span>Time</button>
       <button onClick={()=>{setMode("photo");input.current?.click();}} className="flex flex-col items-center gap-1 text-xs"><span className="flex size-12 items-center justify-center rounded-full bg-white/20 text-xl">＋</span>Media</button>
       {mode==="photo" && file?.type.startsWith("image/") && <button onClick={()=>{setImageOpen(true);setTextOpen(false);}} className="flex flex-col items-center gap-1 text-xs"><span className="flex size-12 items-center justify-center rounded-full bg-white/20 text-xl">⤢</span>Adjust</button>}
       {mode==="text" && <button onClick={()=>setColor(colors[(colors.indexOf(color)+1)%colors.length])} className="flex flex-col items-center gap-1 text-xs"><span className="flex size-12 items-center justify-center rounded-full border-2 border-white/40" style={{background:color}}>●</span>Background</button>}
     </div>
-    <footer className="z-20 flex h-[105px] shrink-0 items-center justify-between gap-4 bg-black px-5 pb-[env(safe-area-inset-bottom)] text-white md:hidden"><StoryAudience value={audience} onChange={setAudience}/><button disabled={busy||(mode==="text"?!allLayers().length:!file)} onClick={()=>void share()} className="rounded-2xl bg-[#00696F] px-8 py-3 text-base font-semibold disabled:opacity-40">{busy?"Sharing…":"Share"}</button></footer>
+    {busy && <div role="status" className="fixed inset-x-4 bottom-28 z-[95] rounded-xl bg-white p-3 text-sm text-[#00696F] shadow-lg md:inset-x-auto md:bottom-6 md:left-1/2 md:w-80 md:-translate-x-1/2"><p className="mb-2">{uploadProgress >= 100 ? "Upload complete. Preparing your story…" : `Uploading story · ${uploadProgress}%`}</p><progress aria-label="Story upload progress" max={100} value={uploadProgress} className="h-2 w-full accent-[#00696F]"/></div>}
+    {file?.type.startsWith("video/") && !busy && <p className="absolute inset-x-4 bottom-[190px] z-20 rounded-lg bg-black/60 px-3 py-2 text-center text-xs text-white md:hidden">Maximum 30 seconds. Longer videos use the first 30 seconds.</p>}
+    {music && <button onClick={() => setMusic(null)} className="absolute right-4 top-20 z-30 rounded-full bg-black/60 px-3 py-2 text-xs text-white md:hidden">Remove music</button>}
+    <label className="absolute left-4 top-20 z-30 flex items-center gap-2 rounded-full bg-black/60 px-3 py-2 text-xs text-white md:hidden"><input type="checkbox" checked={allowReplies} onChange={e => setAllowReplies(e.target.checked)} className="accent-[#00696F]"/>Allow replies</label>
+    <footer className="z-20 flex h-[105px] shrink-0 items-center justify-between gap-4 bg-black px-5 pb-[env(safe-area-inset-bottom)] text-white md:hidden"><StoryAudience value={audience} onChange={setAudience}/><button disabled={busy||(mode==="text"?!allLayers().length:!file)} onClick={()=>void share()} className="rounded-2xl bg-[#00696F] px-8 py-3 text-base font-semibold disabled:opacity-40">{busy ? (uploadProgress >= 100 ? "Processing…" : `Uploading ${uploadProgress}%`) : "Share"}</button></footer>
     {error && <p role="alert" className="absolute inset-x-3 top-20 z-[90] rounded-xl bg-white p-3 text-sm text-red-600 md:hidden">{error}</p>}
   </div>;
 }
