@@ -38,6 +38,7 @@ export type PostItem = {
   hidden?: boolean;
   group?: { id: string; name: string } | null;
 };
+export type SponsoredCampaignContext = { campaignId: string; exposureId: string; eventId: string };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
@@ -178,8 +179,8 @@ export async function updatePost(
   });
 }
 
-export async function togglePostLike(postId: string): Promise<PostItem> {
-  return postRequest<PostItem>(`/posts/${postId}/like`, { method: "POST" });
+export async function togglePostLike(postId: string, input?: { liked: boolean; campaignContext: SponsoredCampaignContext }): Promise<PostItem> {
+  return postRequest<PostItem>(`/posts/${postId}/like`, input ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) } : { method: "POST" });
 }
 
 export async function fetchPostComments(postId: string): Promise<PostComment[]> {
@@ -212,12 +213,13 @@ export async function deletePostComment(postId: string, commentId: string): Prom
 export async function addPostComment(
   postId: string,
   body: string,
-  parentId?: string
+  parentId?: string,
+  campaignContext?: SponsoredCampaignContext,
 ): Promise<PostComment> {
   return postRequest<PostComment>(`/posts/${postId}/comments`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ body, parentId }),
+    body: JSON.stringify({ body, parentId, campaignContext }),
   });
 }
 
@@ -235,8 +237,8 @@ export async function deletePost(postId: string): Promise<unknown> {
   return postRequest(`/posts/${postId}`, { method: "DELETE" });
 }
 
-export async function sharePost(postId: string): Promise<PostItem> {
-  return postRequest<PostItem>(`/posts/${postId}/share`, { method: "POST" });
+export async function sharePost(postId: string, campaignContext?: SponsoredCampaignContext): Promise<PostItem> {
+  return postRequest<PostItem>(`/posts/${postId}/share`, { method: "POST", ...(campaignContext ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ campaignContext }) } : {}) });
 }
 
 export type PostPreferences = { saved: boolean; hidden: boolean };

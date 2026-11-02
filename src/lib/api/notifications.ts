@@ -27,3 +27,6 @@ export const fetchNotifications = () => request<{ items: AppNotification[]; unre
 export const fetchNotificationUnreadCount = async () => (await request<{ count: number }>("/unread-count")).count;
 export const markNotificationRead = (id: string) => request(`/${encodeURIComponent(id)}/read`, { method: "POST" });
 export const markAllNotificationsRead = () => request<{ updated: number }>("/read-all", { method: "POST" });
+
+export const fetchAdminNotifications=()=>request<{items:AppNotification[];unreadCount:number}>("/admin");
+export const markAllAdminNotificationsRead=()=>request<{updated:number}>("/admin/read-all",{method:"POST"});

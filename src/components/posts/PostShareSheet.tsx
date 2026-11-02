@@ -3,16 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Copy, Link2, MessageCircle, Search, Send, Share2, X } from "lucide-react";
 import { listFriends, type FriendUser } from "../../lib/auth";
-import { postShareUrl, sharePost, type PostItem } from "../../lib/api/posts";
+import { postShareUrl, sharePost, type PostItem, type SponsoredCampaignContext } from "../../lib/api/posts";
 import { createDirectConversation, sendMessage } from "../../lib/api/chat";
 import { UserAvatar } from "../ui/UserAvatar";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import ReelOverlay from "./ReelOverlay";
 
-type Props = { post: PostItem; onClose: () => void; onShared: (post: PostItem) => void };
+type Props = { post: PostItem; onClose: () => void; onShared: (post: PostItem) => void; campaignContext?: Omit<SponsoredCampaignContext, "eventId"> };
 const nameOf = (friend: FriendUser) => `${friend.firstName} ${friend.lastName}`.trim() || friend.username;
 
-function ShareSheet({ post, onClose, onShared }: Props) {
+function ShareSheet({ post, onClose, onShared, campaignContext }: Props) {
   const [friends, setFriends] = useState<FriendUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [friendsError, setFriendsError] = useState(false);
@@ -29,6 +29,7 @@ function ShareSheet({ post, onClose, onShared }: Props) {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const shareEventId = useRef(crypto.randomUUID());
   const url = postShareUrl(post.id);
   const reel = post.media[0]?.type.toLowerCase().includes("video");
   const label = reel ? "reel" : "post";
@@ -48,7 +49,7 @@ function ShareSheet({ post, onClose, onShared }: Props) {
   function unlock() { busyRef.current = false; if (alive.current) setBusy(false); }
   function close() { if (!busyRef.current) onClose(); }
   async function record() {
-    try { const updated = await sharePost(post.id); if (alive.current) onShared(updated); } catch { /* Delivery succeeded; a failed counter refresh must not trigger a resend. */ }
+    try { const updated = await sharePost(post.id, campaignContext ? { ...campaignContext, eventId: shareEventId.current } : undefined); if (alive.current) onShared(updated); shareEventId.current = crypto.randomUUID(); } catch { /* Delivery succeeded; a failed counter refresh must not trigger a resend. */ }
   }
   async function copy() {
     if (!lock()) return;

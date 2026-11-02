@@ -1,0 +1,16 @@
+"use client";
+import {useEffect,useRef,useState} from "react";
+import Image from "next/image";
+import {fetchPost,togglePostLike,type PostItem} from "../../lib/api/posts";
+import PostComments from "../posts/PostComments";
+import PostShareButton from "../posts/PostShareButton";
+import PostShareSheet from "../posts/PostShareSheet";
+export default function BoostedPostActions({postId,campaignId,exposureId}:{postId:string;campaignId?:string;exposureId?:string}){
+ const [post,setPost]=useState<PostItem|null>(null),[error,setError]=useState(""),[busy,setBusy]=useState(false),[comments,setComments]=useState(false),[share,setShare]=useState(false);
+ const engagementEvent=useRef(crypto.randomUUID());
+ useEffect(()=>{let active=true;void fetchPost(postId).then(data=>{if(active)setPost(data);}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};},[postId]);
+ if(!post)return <p role={error?"alert":"status"} className="px-4 py-3 text-xs text-slate-500">{error||"Loading post engagement…"}</p>;
+ const button="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg px-2 text-[13px] font-medium hover:bg-gray-50 disabled:opacity-50 sm:text-sm";
+ const sponsoredBase=campaignId&&exposureId?{campaignId,exposureId}:undefined;
+ return <div className="px-4 pb-3"><div className="flex justify-between gap-3 border-b border-slate-100 py-3 text-xs text-slate-500"><span>{post.likesCount.toLocaleString()} Likes</span><div className="flex gap-3"><button type="button" onClick={()=>setComments(v=>!v)} className="hover:underline">{post.commentsCount.toLocaleString()} Comments</button><span>{(post.sharesCount||0).toLocaleString()} Shares</span></div></div><div className="flex gap-1 py-1"><button type="button" disabled={busy} aria-pressed={post.liked} className={button+(post.liked?" text-[#00696F]":" text-[#4B5563]")} onClick={async()=>{setBusy(true);setError("");try{const campaignContext=campaignId&&exposureId?{campaignId,exposureId,eventId:engagementEvent.current}:undefined;setPost(await togglePostLike(postId,campaignContext?{liked:!post.liked,campaignContext}:undefined));engagementEvent.current=crypto.randomUUID();}catch(e){setError(e instanceof Error?e.message:"Unable to like post");}finally{setBusy(false);}}}><span aria-hidden="true" className="size-3.5" style={{backgroundColor:post.liked?"#00696F":"#4B5563",mask:"url(/figma/icons/like.svg) center / contain no-repeat",WebkitMask:"url(/figma/icons/like.svg) center / contain no-repeat"}}/>{post.liked?"Liked":"Like"}</button><button type="button" aria-expanded={comments} className={button+" text-[#4B5563]"} onClick={()=>setComments(v=>!v)}><Image src="/figma/icons/comment.svg" alt="" width={14} height={14}/>Comment</button><div className="flex flex-1 items-center justify-center"><PostShareButton expanded={share} onClick={()=>{setShare(v=>!v);setError("");}}/></div></div>{error&&<p role="alert" className="py-2 text-xs text-red-600">{error}</p>}{comments&&<PostComments postId={postId} postAuthorId={post.author.id} campaignContext={sponsoredBase} onCountChanged={count=>setPost(current=>current?{...current,commentsCount:count}:current)}/>} {share&&<PostShareSheet post={post} campaignContext={sponsoredBase} onClose={()=>setShare(false)} onShared={setPost}/>}</div>;
+}

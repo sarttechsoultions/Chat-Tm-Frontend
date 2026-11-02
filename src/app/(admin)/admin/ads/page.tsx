@@ -1,2 +1,2 @@
-import AdsWorkspace from "../../../../components/ads/AdsWorkspace";
-export default function AdsReviewPage(){return <AdsWorkspace admin/>;}
+import AdminAdsOverview from "../../../../components/admin/AdminAdsOverview";
+export default function AdminAdsPage(){return <AdminAdsOverview/>;}

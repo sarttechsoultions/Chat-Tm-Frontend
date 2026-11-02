@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { addPostComment, fetchPostCommentPage, fetchPostReplyPage, toggleCommentLike, type CommentMutation, type PostComment } from "../../lib/api/posts";
+import { addPostComment, fetchPostCommentPage, fetchPostReplyPage, toggleCommentLike, type CommentMutation, type PostComment, type SponsoredCampaignContext } from "../../lib/api/posts";
 import { playCommentSound, playLikeSound } from "../../lib/sounds";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { UserAvatar } from "../ui/UserAvatar";
@@ -17,8 +17,8 @@ function mergeReplies(previous: PostComment[], next: PostComment[]) {
     new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime() || left.id.localeCompare(right.id));
 }
 
-export default function PostComments({ postId, postAuthorId, active = true, fill = false, onCountChanged }: {
-  postId: string; postAuthorId: string; active?: boolean; fill?: boolean; onCountChanged: (count: number) => void;
+export default function PostComments({ postId, postAuthorId, active = true, fill = false, onCountChanged, campaignContext }: {
+  postId: string; postAuthorId: string; active?: boolean; fill?: boolean; onCountChanged: (count: number) => void; campaignContext?: Omit<SponsoredCampaignContext, "eventId">;
 }) {
   const user = useCurrentUser();
   const [comments, setComments] = useState<PostComment[]>([]);
@@ -42,6 +42,7 @@ export default function PostComments({ postId, postAuthorId, active = true, fill
   const onCount = useRef(onCountChanged);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const commentEventId = useRef(crypto.randomUUID());
   useEffect(() => { onCount.current = onCountChanged; }, [onCountChanged]);
 
   useEffect(() => {
@@ -131,7 +132,7 @@ export default function PostComments({ postId, postAuthorId, active = true, fill
     setPosting(true);
     setPostError("");
     try {
-      const created = await addPostComment(postId, draft.trim(), replyingTo?.id);
+      const created = await addPostComment(postId, draft.trim(), replyingTo?.id, campaignContext ? { ...campaignContext, eventId: commentEventId.current } : undefined);
       if (!mounted.current) return;
       if (created.visible !== false) {
         if (created.parentId) setComments(previous => previous.map(parent => parent.id === created.parentId ? {
@@ -145,6 +146,7 @@ export default function PostComments({ postId, postAuthorId, active = true, fill
       setNotice(created.visible === false ? "Your comment was submitted for moderation review." : created.parentId ? "Reply posted." : "Comment posted.");
       setDraft("");
       setReplyingTo(null);
+      commentEventId.current = crypto.randomUUID();
       if (!created.parentId) listRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) { if (mounted.current) setPostError(error instanceof Error ? error.message : "Couldn't post your comment. Please try again."); }
     finally { busy.current.delete("posting"); if (mounted.current) setPosting(false); }

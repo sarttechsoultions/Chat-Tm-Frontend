@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ArrowUpFromLine,
   Check,
   Copy,
   ExternalLink,
@@ -359,22 +358,22 @@ export default function ReelSponsoredAd() {
             <span className="text-[11px] font-semibold drop-shadow">{fmtNum(ad.social.comments)}</span>
           </button>
 
-          {/* Share — better icon: arrow-up-from-line (like iOS share) */}
+          {/* Match the share action used by regular reels. */}
           <button
             type="button"
             onClick={() => setShareOpen(true)}
-            aria-label="Share"
-            className="flex flex-col items-center gap-1 transition active:scale-90"
+            aria-label="Share reel"
+            className="flex flex-col items-center gap-1 transition active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
           >
-            <ArrowUpFromLine size={25} className="drop-shadow" strokeWidth={2} />
+            <span className="flex size-10 items-center justify-center rounded-full bg-black/45 transition-colors hover:bg-black/60"><Share2 size={20} aria-hidden="true" /></span>
             <span className="text-[11px] font-semibold drop-shadow">{fmtNum(ad.social.shares)}</span>
           </button>
         </div>
 
-        {/* ── AD badge — sits just below share button ── */}
+        {/* Ad disclosure stays below the action rail with a clear gap. */}
         <span
           aria-label="Advertisement"
-          className="absolute right-3 bottom-[208px] rounded-sm bg-white/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white backdrop-blur-sm ring-1 ring-white/30"
+          className="absolute right-3 bottom-[184px] w-10 rounded-md bg-black/45 px-1.5 py-1 text-center text-[10px] font-bold uppercase tracking-wider text-white backdrop-blur-sm ring-1 ring-white/30"
         >
           Ad
         </span>

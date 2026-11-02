@@ -1,5 +1,5 @@
-import AdminSectionView from "../../../../../components/admin/AdminSectionView";
+import AdminAdvertisers from "../../../../../components/admin/AdminAdvertisers";
 
 export default function Page() {
-  return <AdminSectionView title="Advertisers" phase="Phase 4" />;
+  return <AdminAdvertisers />;
 }

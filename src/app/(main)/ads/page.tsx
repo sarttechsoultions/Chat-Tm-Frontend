@@ -1,2 +1,2 @@
-import AdsWorkspace from "../../../components/ads/AdsWorkspace";
-export default function AdsPage(){return <AdsWorkspace/>;}
+import CampaignDashboard from "../../../components/ads/CampaignDashboard";
+export default function AdsPage() { return <CampaignDashboard />; }
