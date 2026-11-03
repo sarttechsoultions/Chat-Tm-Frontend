@@ -478,15 +478,17 @@ export default function FriendsView({ tab }: { tab: FriendTab }) {
                     key={user.id}
                     className="grid grid-cols-[64px_minmax(0,1fr)] items-center gap-x-4 rounded-xl border border-[#E5EBEC] bg-white p-4 text-left transition-shadow hover:shadow-md sm:block sm:p-5 sm:text-center"
                   >
-                    <div className="row-span-3 w-fit self-center sm:mx-auto sm:mb-3">
-                      <UserAvatar
-                        avatarUrl={user.avatar}
-                        name={nameOf(user)}
-                        size="size-16 sm:size-20"
-                        isOnline={user.isOnline}
-                      />
-                    </div>
-                    <h3 className="truncate text-[15px] font-semibold text-[#182F32]">{nameOf(user)}</h3>
+                    <Link href={`/profile/${encodeURIComponent(user.username)}`} aria-label={`Open ${nameOf(user)}'s profile`} className="contents">
+                      <div className="row-span-3 w-fit self-center sm:mx-auto sm:mb-3">
+                        <UserAvatar
+                          avatarUrl={user.avatar}
+                          name={nameOf(user)}
+                          size="size-16 sm:size-20"
+                          isOnline={user.isOnline}
+                        />
+                      </div>
+                      <h3 className="truncate text-[15px] font-semibold text-[#182F32]">{nameOf(user)}</h3>
+                    </Link>
                     <button type="button" disabled={!user.mutualFriends} onClick={()=>void showMutualFriends(user)} className="text-left text-[12px] text-[#3C494A] enabled:hover:underline disabled:cursor-default sm:text-center">
                       {user.mutualFriends} mutual friends
                     </button>

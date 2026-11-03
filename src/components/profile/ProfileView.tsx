@@ -299,9 +299,9 @@ export default function ProfileView({ username }: { username?: string }) {
   ];
 
   return (
-    <div className={`mx-auto w-full pb-4 sm:pb-10 ${isOwn ? "max-w-[1180px]" : "max-w-[820px]"}`}>
+    <div className="mx-auto w-full max-w-[1180px] pb-4 sm:pb-10">
       <section className="overflow-hidden rounded-[16px] bg-white shadow-[0_1px_4px_rgba(0,0,0,0.08)]">
-        <div className={`relative bg-[#117378] ${isOwn ? "h-[190px] sm:h-[290px] lg:h-[350px]" : "h-[140px] sm:h-[180px] lg:h-[220px]"}`}>
+        <div className="relative h-[190px] bg-[#117378] sm:h-[290px] lg:h-[350px]">
           {user.coverPhoto ? (
             <img src={user.coverPhoto} alt="" className="size-full object-cover" />
           ) : (
@@ -312,13 +312,13 @@ export default function ProfileView({ username }: { username?: string }) {
 
         <div className="relative px-4 pb-5 sm:px-8">
           <div className="-mt-12 flex flex-col gap-4 sm:-mt-16 sm:flex-row sm:items-end sm:justify-between">
-            <div className="flex min-w-0 flex-col items-start gap-3 sm:flex-row sm:items-end sm:gap-4">
+            <div className="flex min-w-0 flex-col items-start gap-3 sm:flex-row sm:items-end sm:gap-5">
               <div className="rounded-full border-4 border-white bg-white">
-                <UserAvatar avatarUrl={user.avatar} name={fullName(user)} size={isOwn ? "size-24 sm:size-32 lg:size-40" : "size-20 sm:size-28 lg:size-32"} />
+                <UserAvatar avatarUrl={user.avatar} name={fullName(user)} size="size-24 sm:size-32 lg:size-40" />
               </div>
               <div className="min-w-0 pb-1">
                 <div className="flex items-center gap-1.5">
-                  <h1 className="truncate text-[20px] font-bold leading-7 text-[#111827] sm:text-[24px] sm:leading-8">{fullName(user)}</h1>
+                  <h1 className="truncate text-[24px] font-bold leading-8 text-[#111827] sm:text-[30px] sm:leading-9">{fullName(user)}</h1>
                   {user.isVerified ? (
                     <img src="/figma/icons/verified.svg" alt="" width={16} height={16} />
                   ) : null}
@@ -404,7 +404,8 @@ export default function ProfileView({ username }: { username?: string }) {
 
       {selectedPostId&&posts.find(post=>post.id===selectedPostId)&&<div role="dialog" aria-modal="true" aria-label="Post" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" onClick={()=>setSelectedPostId(null)}><div className="relative max-h-[90dvh] w-full max-w-[560px] overflow-y-auto rounded-2xl bg-white" onClick={e=>e.stopPropagation()}><button autoFocus aria-label="Close post" onClick={()=>setSelectedPostId(null)} className="sticky top-2 z-20 ml-auto mr-2 flex size-9 items-center justify-center rounded-full bg-white shadow"><X size={20}/></button><PostCard post={posts.find(post=>post.id===selectedPostId)!} compactMedia showHiddenContent onPreferenceChanged={updatePostPreferences} onDeleted={id=>{setData(prev=>prev?{...prev,posts:prev.posts.filter(post=>post.id!==id)}:prev);setSelectedPostId(null);}}/></div></div>}
       <div className="mt-5">
-        {tab === "posts" ? (
+        {tab === "posts" && !isOwn ? <VisitorPostsLayout user={user} stats={stats} friends={friends} photos={photos} posts={posts} onOpenPost={setSelectedPostId} onSelectTab={setTab} onPreferenceChanged={updatePostPreferences} /> : null}
+        {tab === "posts" && isOwn ? (
           isOwn ? <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]">
             <div ref={ownAsideRef} style={ownAsidePosition?{minHeight:ownAsidePosition.height}:undefined}>
             <aside className="space-y-4" style={ownAsidePosition?{position:"fixed",left:ownAsidePosition.left,top:ownAsidePosition.top,width:ownAsidePosition.width,maxHeight:`calc(100dvh - ${ownAsidePosition.top+16}px)`,overflowY:"auto",zIndex:10}:undefined}>
@@ -536,6 +537,45 @@ export default function ProfileView({ username }: { username?: string }) {
 
     </div>
   );
+}
+
+function VisitorPostsLayout({ user, stats, friends, photos, posts, onOpenPost, onSelectTab, onPreferenceChanged }: {
+  user: ProfileData["user"];
+  stats: ProfileData["stats"];
+  friends: FriendUser[];
+  photos: ProfileData["photos"];
+  posts: ProfileData["posts"];
+  onOpenPost: (id: string) => void;
+  onSelectTab: (tab: Tab) => void;
+  onPreferenceChanged: (id: string, preferences: PostPreferences) => void;
+}) {
+  return <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(280px,360px)_minmax(0,640px)]">
+    <aside className="space-y-4 lg:sticky lg:top-4">
+      <section className="rounded-2xl bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-bold text-[#14232D]">Personal details</h2>
+        <div className="mt-4 space-y-3 text-sm text-[#35434A]">
+          {user.bio ? <p className="whitespace-pre-wrap break-words leading-6">{user.bio}</p> : <p className="text-[#7A878D]">No introduction added yet.</p>}
+          {user.location ? <p className="flex items-center gap-2"><MapPin size={17} className="shrink-0 text-[#00696F]"/> Lives in {user.location}</p> : null}
+          {user.website ? <a href={user.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 break-all font-medium text-[#00696F]"><Globe size={17} className="shrink-0"/>{user.website}</a> : null}
+        </div>
+      </section>
+
+      <section className="rounded-2xl bg-white p-5 shadow-sm">
+        <div className="flex items-center justify-between gap-3"><div><h2 className="text-lg font-bold text-[#14232D]">Friends</h2><p className="mt-0.5 text-sm text-[#6B7280]">{stats.friends} friends</p></div><button type="button" onClick={() => onSelectTab("friends")} className="shrink-0 text-sm font-semibold text-[#00696F]">See all</button></div>
+        {friends.length ? <div className="mt-4 grid grid-cols-3 gap-2">{friends.slice(0, 9).map(friend => <Link key={friend.id} href={`/profile/${encodeURIComponent(friend.username)}`} className="min-w-0"><div className="aspect-square overflow-hidden rounded-lg bg-[#EEF4F4]"><UserAvatar avatarUrl={friend.avatar} name={friendName(friend)} size="size-full"/></div><p className="mt-1 truncate text-xs font-medium text-[#243840]">{friendName(friend)}</p></Link>)}</div> : <p className="mt-4 text-sm text-[#7A878D]">No friends to show yet.</p>}
+      </section>
+
+      <section className="rounded-2xl bg-white p-5 shadow-sm">
+        <div className="flex items-center justify-between gap-3"><div><h2 className="text-lg font-bold text-[#14232D]">Photos</h2><p className="mt-0.5 text-sm text-[#6B7280]">{stats.photos} photos</p></div><button type="button" onClick={() => onSelectTab("photos")} className="shrink-0 text-sm font-semibold text-[#00696F]">See all</button></div>
+        {photos.length ? <div className="mt-4 grid grid-cols-3 gap-1.5 overflow-hidden rounded-xl">{photos.slice(0, 9).map(photo => <button key={photo.id} type="button" onClick={() => onOpenPost(photo.postId)} className="aspect-square overflow-hidden bg-[#E7EEEE]"><img src={photo.url} alt="Open photo post" loading="lazy" className="size-full object-cover"/></button>)}</div> : <p className="mt-4 text-sm text-[#7A878D]">No photos yet.</p>}
+      </section>
+    </aside>
+
+    <section className="min-w-0 space-y-4">
+      <div className="rounded-2xl bg-white px-5 py-4 shadow-sm"><h2 className="text-lg font-bold text-[#14232D]">Posts</h2><p className="mt-0.5 text-sm text-[#6B7280]">{stats.posts} posts</p></div>
+      {posts.length ? posts.map(post => <PostCard key={post.id} post={post} compactMedia showHiddenContent onPreferenceChanged={onPreferenceChanged}/>) : <div className="rounded-2xl bg-white px-5 py-12 text-center text-sm text-[#6B7280] shadow-sm">No posts yet.</div>}
+    </section>
+  </div>;
 }
 
 function ProfileConnectionDialog({ name, working, onClose, onConfirm, action = "block" }: { name: string; working: boolean; onClose: () => void; onConfirm: () => void; action?: "block" | "unfriend" }) {

@@ -34,7 +34,7 @@ export default function SponsoredAd({ compact = false, onSourcePostChange }: { c
         timer = setTimeout(() => {
           if (document.hidden) return;
           recorded = true;
-          void adsRequest(`/${ad.id}/event`, { type: "impression" }).catch(() => { recorded = false; });
+          void adsRequest(`/${ad.id}/event`, { type: "impression", exposureId: ad.exposureId }).catch(() => { recorded = false; });
         }, 1000);
       }
     }, { threshold: [0, 0.5] });
@@ -44,7 +44,7 @@ export default function SponsoredAd({ compact = false, onSourcePostChange }: { c
 
   if (!ad) return null;
   const advertiserName = ad.advertiser.firstName || ad.advertiser.username;
-  const visit = () => { void adsRequest(`/${ad.id}/event`, { type: "click" }).catch(() => {}); };
+  const visit = () => { void adsRequest(`/${ad.id}/event`, { type: "click", exposureId: ad.exposureId }).catch(() => {}); };
 
   if (compact) return <section ref={ref} aria-label={`Sponsored by ${advertiserName}`} className="overflow-hidden rounded-2xl border border-slate-100 bg-white p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
     <div className="mb-3 flex items-center justify-between"><h3 className="text-base font-bold text-[#111827]">Sponsored</h3><ShieldCheck aria-hidden className="size-4 text-slate-400" /></div>

@@ -20,6 +20,8 @@ import { UserAvatar } from "../ui/UserAvatar";
 
 type Ad = {
   id: string;
+  sourcePostId?: string | null;
+  exposureId?: string;
   advertiser: {
     firstName: string;
     username: string;
@@ -51,10 +53,12 @@ function fmtNum(n: number) {
 /* ─── Share Sheet ──────────────────────────────────────────────────── */
 function ShareSheet({
   ad,
+  campaignContext,
   onClose,
   onShared,
 }: {
   ad: Ad;
+  campaignContext?: { campaignId:string; exposureId:string; eventId:string };
   onClose: () => void;
   onShared: (social: Ad["social"]) => void;
 }) {
@@ -63,7 +67,7 @@ function ShareSheet({
 
   const recordShare = async () => {
     try {
-      const social = await adsRequest(`/${ad.id}/share`, {});
+      const social = await adsRequest(`/${ad.id}/share`, { campaignContext });
       onShared(social);
     } catch {}
   };
@@ -196,7 +200,7 @@ export default function ReelSponsoredAd() {
 
   useEffect(() => {
     let cancelled = false;
-    void adsRequest("/delivery/feed")
+    void adsRequest("/delivery/reels")
       .then((data) => { if (!cancelled) setAd(data.ad); })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -213,7 +217,7 @@ export default function ReelSponsoredAd() {
           timer = window.setTimeout(() => {
             if (document.hidden) return;
             recorded = true;
-            void adsRequest(`/${ad.id}/event`, { type: "impression" }).catch(() => { recorded = false; });
+            void adsRequest(`/${ad.id}/event`, { type: "impression", exposureId: ad.exposureId }).catch(() => { recorded = false; });
           }, 1000);
         }
       },
@@ -227,14 +231,15 @@ export default function ReelSponsoredAd() {
 
   const name = ad.advertiser.firstName || ad.advertiser.username;
   const isFriend = ad.advertiser.connection === "friend";
-  const visit = () => { void adsRequest(`/${ad.id}/event`, { type: "click" }).catch(() => {}); };
+  const visit = () => { void adsRequest(`/${ad.id}/event`, { type: "click", exposureId: ad.exposureId }).catch(() => {}); };
   const updateSocial = (social: Ad["social"]) =>
     setAd((cur) => (cur ? { ...cur, social } : cur));
 
+  const campaignContext = () => ad.exposureId ? { campaignId: ad.id, exposureId: ad.exposureId, eventId: crypto.randomUUID() } : undefined;
   const toggleLike = async () => {
     if (working) return;
     setWorking("like");
-    try { updateSocial(await adsRequest(`/${ad.id}/like`, {})); }
+    try { updateSocial(await adsRequest(`/${ad.id}/like`, { campaignContext: campaignContext() })); }
     finally { setWorking(""); }
   };
 
@@ -252,7 +257,7 @@ export default function ReelSponsoredAd() {
     if (!commentText.trim() || working) return;
     setWorking("comment");
     try {
-      const data = await adsRequest(`/${ad.id}/comments`, { body: commentText });
+      const data = await adsRequest(`/${ad.id}/comments`, { body: commentText, campaignContext: campaignContext() });
       setComments((cur) => [data.comment, ...cur]);
       setCommentText("");
       updateSocial(data.stats);
@@ -264,7 +269,7 @@ export default function ReelSponsoredAd() {
       <article
         ref={ref}
         aria-label={`Sponsored reel by ${name}`}
-        className="relative h-full min-h-full shrink-0 snap-start snap-always overflow-hidden bg-black shadow-sm md:rounded-2xl"
+        className="relative aspect-[9/16] h-auto min-h-0 shrink-0 snap-start snap-always overflow-hidden bg-black shadow-sm md:rounded-2xl"
       >
         {/* Blurred ambient background */}
         <img
@@ -463,6 +468,7 @@ export default function ReelSponsoredAd() {
       {shareOpen && (
         <ShareSheet
           ad={ad}
+          campaignContext={campaignContext()}
           onClose={() => setShareOpen(false)}
           onShared={(social) => { updateSocial(social); setShareOpen(false); }}
         />
