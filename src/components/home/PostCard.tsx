@@ -21,6 +21,7 @@ import MediaCarousel from "../posts/MediaCarousel";
 import PostOptionsMenu from "../posts/PostOptionsMenu";
 import { announcePostSuccess } from "../posts/PostNotice";
 import PostComments from "../posts/PostComments";
+import PostShareButton from "../posts/PostShareButton";
 import PostShareSheet from "../posts/PostShareSheet";
 
 function formatPostTime(iso: string) {
@@ -330,6 +331,7 @@ export default function PostCard({
         <PostOptionsMenu post={post} isOwner={isOwner} deleting={working} onDelete={() => void handleDelete()} onCopyLink={() => void copyLink()} onShare={() => setShareOpen(true)} onPreferenceChanged={updatePreferences} />
       </div>
 
+      {isOwner&&post.privacy==="PUBLIC"&&!post.group&&post.media.some(m=>m.type==="image")&&<div className="flex justify-end"><Link href={`/ads/create?post=${post.id}`} className="rounded-lg border border-[#00696F]/20 bg-teal-50 px-4 py-2 text-xs font-semibold text-[#00696F] hover:bg-teal-100">Boost post</Link></div>}
       {post.hidden ? <p className="rounded-lg bg-[#F3F4F6] px-3 py-2 text-xs text-[#6B7280]">Hidden from your feeds. Choose Unhide post in the options menu to restore it.</p> : null}
 
       {post.heading ? (
@@ -462,20 +464,7 @@ export default function PostCard({
           Comment
         </button>
         <div className="relative">
-          <button
-            type="button"
-            onClick={() => {
-              setShareOpen((open) => !open);
-              setShareNotice("");
-
-            }}
-            className="flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-2 text-[13px] font-medium text-[#4B5563] hover:bg-gray-50 sm:gap-2 sm:px-4 sm:text-[14px]"
-          >
-            <span className="relative w-[14px] h-[12px] overflow-clip">
-              <img src="/figma/icons/share.svg" alt="" width={14} height={12} className="size-full object-contain" />
-            </span>
-            Share
-          </button>
+          <PostShareButton expanded={shareOpen} onClick={()=>{setShareOpen(open=>!open);setShareNotice("");}}/>
 
         </div>
       </div>

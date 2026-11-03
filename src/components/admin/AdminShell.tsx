@@ -1,4 +1,5 @@
 "use client";
+import AdminNotifications from "./AdminNotifications";
 
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
@@ -86,7 +87,9 @@ export const ADMIN_NAV = [
   {
     heading: "Monetization",
     items: [
-      { href: "/admin/ads", label: "Ads", icon: Megaphone },
+      { href: "/admin/ads", label: "Ads Overview", icon: Megaphone },
+      { href: "/admin/ads/review", label: "Ad Review Queue", icon: Megaphone },
+      { href: "/admin/ads/pricing", label: "Ad Pricing", icon: Settings },
       { href: "/admin/ads/advertisers", label: "Advertisers", icon: Users },
       { href: "/admin/marketplace", label: "Marketplace", icon: Store },
     ],
@@ -209,12 +212,10 @@ export function AdminSidebar() {
 }
 
 export function AdminFrame({ children }: { children: React.ReactNode }) {
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPath, setMenuPath] = useState<string | null>(null);
   const pathname = usePathname();
 
-  useEffect(() => {
-    setMenuOpen(false);
-  }, [pathname]);
+  const menuOpen = menuPath !== null && menuPath === pathname;
 
   return (
     <div className="flex h-[100dvh] overflow-hidden bg-[#F5F7F7]">
@@ -226,7 +227,7 @@ export function AdminFrame({ children }: { children: React.ReactNode }) {
         <button
           type="button"
           aria-label="Close admin menu"
-          onClick={() => setMenuOpen(false)}
+          onClick={() => setMenuPath(null)}
           className={`absolute inset-0 bg-black/40 transition-opacity ${menuOpen ? "opacity-100" : "opacity-0"}`}
         />
         <div
@@ -239,7 +240,7 @@ export function AdminFrame({ children }: { children: React.ReactNode }) {
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <AdminHeader onMenuClick={() => setMenuOpen(true)} />
+        <AdminHeader onMenuClick={() => setMenuPath(pathname)} />
         <main className="min-h-0 flex-1 overflow-y-auto no-scrollbar p-4 sm:p-6">{children}</main>
       </div>
     </div>
@@ -247,19 +248,29 @@ export function AdminFrame({ children }: { children: React.ReactNode }) {
 }
 
 export function AdminHeader({ onMenuClick }: { onMenuClick?: () => void }) {
-  const [name, setName] = useState(() => {
-    const user = getStoredUser();
-    return user ? displayName(user) : "Admin";
-  });
-  const [avatar, setAvatar] = useState(() => getStoredUser()?.avatar || "");
+  // Keep the server render and the first browser render identical.
+  const [name, setName] = useState("Admin");
+  const [avatar, setAvatar] = useState("");
 
   useEffect(() => {
-    meRequest()
+    let active = true;
+    void Promise.resolve()
+      .then(() => {
+        if (!active) return null;
+        const cached = getStoredUser();
+        if (cached) {
+          setName(displayName(cached));
+          setAvatar(cached.avatar || "");
+        }
+        return meRequest();
+      })
       .then((latest) => {
+        if (!active || !latest) return;
         setName(displayName(latest));
         setAvatar(latest.avatar || "");
       })
       .catch(() => {});
+    return () => { active = false; };
   }, []);
 
   return (
@@ -286,13 +297,7 @@ export function AdminHeader({ onMenuClick }: { onMenuClick?: () => void }) {
       </label>
 
       <div className="ml-auto flex items-center gap-4">
-        <Link
-          href="/admin/reports"
-          aria-label="Open reports"
-          className="relative size-10 rounded-full flex items-center justify-center text-[#6B7280] hover:bg-[#F3F4F6] transition-colors"
-        >
-          <Bell className="size-[22px]" />
-        </Link>
+        <AdminNotifications />
         <div className="hidden h-[42px] cursor-pointer items-center gap-3 rounded-full border border-[#E5E7EB] bg-white pl-2 pr-4 shadow-sm hover:bg-gray-50 transition-colors sm:flex">
           <UserAvatar avatarUrl={avatar} name={name} size={32} />
           <div className="flex flex-col justify-center">

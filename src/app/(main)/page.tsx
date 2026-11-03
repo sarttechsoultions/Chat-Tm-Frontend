@@ -8,9 +8,12 @@ import StoriesSection from "../../components/home/StoriesSection";
 import PostCard from "../../components/home/PostCard";
 import CreatePostPage from "../../components/posts/CreatePostPage";
 import { fetchPostsWithPagination, type PostItem } from "../../lib/api/posts";
+import { adsRequest } from "../../lib/api/ads";
 import { useCurrentUser } from "../../components/hooks/useCurrentUser";
 
 function FeedResults() {
+  const [sponsoredSourceIds,setSponsoredSourceIds]=useState<Set<string>>(()=>new Set());
+  const [adInterval,setAdInterval]=useState(4);
   const [posts, setPosts] = useState<PostItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -65,6 +68,8 @@ function FeedResults() {
     return () => { mounted.current = false; };
   }, [loadInitialPosts]);
 
+  useEffect(() => { let active=true; void adsRequest("/config").then((config:{feedInterval?:number}) => { if(active&&Number.isInteger(config.feedInterval)&&config.feedInterval!>=3) setAdInterval(config.feedInterval!); }).catch(()=>{}); return()=>{active=false;}; }, []);
+
   // Infinite scroll intersection observer
   useEffect(() => {
     const target = observerTargetRef.current;
@@ -86,7 +91,7 @@ function FeedResults() {
   return (
     <div className="mx-auto flex w-full max-w-[604px] flex-col gap-4 sm:gap-6">
       <CreatePostCard onOpenModal={() => setCreateModalOpen(true)} />
-      <StoriesSection /><SponsoredAd/>
+      <StoriesSection />
 
       {error ? (
         <div className="rounded-[16px] bg-white p-4 text-center shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
@@ -105,16 +110,16 @@ function FeedResults() {
         <PostSkeleton />
       ) : posts.length ? (
         <>
-          {posts.map((post) => (
+          {posts.filter(post=>!sponsoredSourceIds.has(post.id)).map((post,index) => <React.Fragment key={post.id}>
             <PostCard
-              key={post.id}
               post={post}
               onDeleted={(id) => setPosts((prev) => prev.filter((item) => item.id !== id))}
               onUpdated={(updated) =>
                 setPosts((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
               }
             />
-          ))}
+            {(index + 1) % adInterval === 0 ? <SponsoredAd onSourcePostChange={(id) => { if (id) setSponsoredSourceIds(current => new Set([...current, id])); }} /> : null}
+          </React.Fragment>)}
 
           {/* Infinite scroll trigger target */}
           <div ref={observerTargetRef} className="h-4 w-full" />
