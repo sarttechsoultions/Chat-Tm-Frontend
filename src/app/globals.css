@@ -225,3 +225,46 @@
  html[data-messenger] .app-viewport main { min-height: 0; }
  html[data-messenger] [data-keyboard-open] { overscroll-behavior: none; }
 }
+
+/* Keep hover feedback visual without underlining text anywhere in the app. */
+a:hover,
+button:hover {
+  text-decoration-line: none !important;
+}
+
+/* Campaign table: campaign names retain their link and expose a clear detail action. */
+table:has(input[aria-label^="Select campaigns"]) th:first-child,
+table:has(input[aria-label^="Select campaigns"]) tbody td:first-child {
+  display: none;
+}
+
+table:has(input[aria-label^="Select campaigns"]) {
+  min-width: 880px !important;
+}
+
+table:has(input[aria-label^="Select campaigns"]) th,
+table:has(input[aria-label^="Select campaigns"]) td {
+  vertical-align: middle;
+}
+
+/* Keep the details affordance within the campaign cell, without competing with the title. */
+table:has(input[aria-label^="Select campaigns"]) a[title][href^="/ads/"] {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  line-height: 1.15;
+}
+
+table:has(input[aria-label^="Select campaigns"]) a[title][href^="/ads/"]::after {
+  content: "View details →";
+  color: #007b80;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+table:has(input[aria-label^="Select campaigns"]) a[title][href^="/ads/"]:hover::after {
+  color: #005b60;
+}
+
